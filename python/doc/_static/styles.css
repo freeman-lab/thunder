@@ -1,0 +1,63 @@
+@media (min-width: 1200px) {
+  .container{
+      width: 970px;
+  }
+}
+
+p {
+  line-height: 1.4em
+}
+
+.navbar-brand {
+	margin-top: -5px;
+}
+
+body {
+	color: #2d3c48;
+	font: 17px "Helvetica Neue", sans-serif;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+     transition: all .25s; 
+     -moz-transition: all .25s; 
+     -webkit-transition: all .25s;
+     border: none;
+}
+
+a:hover {
+     text-decoration: none;
+     transition: all .25s; 
+     -moz-transition: all .25s; 
+     -webkit-transition: all .25s;
+}
+
+a:focus {
+	outline: 0;
+}
+
+h1 {
+	font-size: 48px;
+}
+
+pre {
+  font-size: 14px;
+}
+
+code {
+  font-size: 14px;
+  color: #2d3c48;
+}
+
+footer {
+  margin-top: 30px;
+}
+
+.mythumbnail {
+	border-radius: 10px;
+	display: block;
+	margin-left: -15px;
+	margin-right: auto;
+	max-width: 120%;
+}

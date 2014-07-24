@@ -85,6 +85,7 @@ object StatefulStats {
     //val out = state.mapValues(x => Array(x.count, x.mean, x.variance))
 
     ssc.start()
+    ssc.awaitTermination()
   }
 
 }

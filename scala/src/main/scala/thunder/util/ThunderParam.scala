@@ -43,7 +43,7 @@ class ThunderParam {
   }
 
   def getBinName: Array[String] = {
-    settings.get("binName").get.split("\n")
+    settings.get("binNames").get.split("\n")
   }
 
   def toDebugString: String = {

@@ -1,10 +1,7 @@
 import shutil
 import tempfile
 from numpy import array, allclose, pi
-from thunder.regression.util import RegressionModel, TuningModel
-from thunder.regression.regress import regress
-from thunder.regression.regresswithpca import regresswithpca
-from thunder.regression.tuning import tuning
+from thunder.regression import RegressionModel, TuningModel
 from test_utils import PySparkTestCase
 
 
@@ -24,7 +21,6 @@ class TestRegress(RegressionTestCase):
     on small data against ground truth
     (ground truth derived by doing the algebra in MATLAB)
 
-    Also tests that main analysis scripts run without crashing
     """
     def test_linear_regress(self):
         data = self.sc.parallelize([(1, array([1.5, 2.3, 6.2, 5.1, 3.4, 2.1]))])
@@ -37,14 +33,6 @@ class TestRegress(RegressionTestCase):
         assert(allclose(betas.map(lambda (_, v): v).collect()[0], array([-2.7, -1.9])))
         assert(allclose(stats.map(lambda (_, v): v).collect()[0], array([0.42785299])))
         assert(allclose(resid.map(lambda (_, v): v).collect()[0], array([0, 0, 2, 0.9, -0.8, -2.1])))
-
-        stats, betas = regress(data, x, "linear")
-        stats.collect()
-        betas.collect()
-
-        stats, comps, latent, scores, traj = regresswithpca(data, x, "linear")
-        stats.collect()
-        scores.collect()
 
     def test_blinear_regress(self):
         data = self.sc.parallelize([(1, array([1.5, 2.3, 6.2, 5.1, 3.4, 2.1]))])
@@ -63,14 +51,6 @@ class TestRegress(RegressionTestCase):
         assert(allclose(betas.map(lambda (_, v): v).collect()[0], array([-3.1249, 5.6875, 0.4375]), atol=tol))
         assert(allclose(stats.map(lambda (_, v): v).collect()[0], array([0.6735]), tol))
         assert(allclose(resid.map(lambda (_, v): v).collect()[0], array([0, -0.8666, 0, 1.9333, 0, -1.0666]), atol=tol))
-
-        stats, betas = regress(data, (x1, x2), "bilinear")
-        stats.collect()
-        betas.collect()
-
-        stats, comps, latent, scores, traj = regresswithpca(data, (x1, x2), "bilinear")
-        stats.collect()
-        scores.collect()
 
 
 class TestTuning(RegressionTestCase):
@@ -101,24 +81,3 @@ class TestTuning(RegressionTestCase):
         params = model.fit(data)
         tol = 1E-4  # to handle rounding errors
         assert(allclose(params.map(lambda (_, v): v).collect()[0], array([0.10692, 1.61944]), atol=tol))
-
-    def test_tuning_scripts(self):
-        data = self.sc.parallelize([(1, array([1.5, 2.3, 6.2, 5.1, 3.4, 2.1]))])
-        x1 = array([
-            array([1, 0, 1, 0, 1, 0]),
-            array([0, 1, 0, 1, 0, 1])
-        ])
-        x2 = array([
-            array([1, 1, 0, 0, 0, 0]),
-            array([0, 0, 1, 1, 0, 0]),
-            array([0, 0, 0, 0, 1, 1])
-        ])
-        s = array([-pi/4, pi/4, pi/3])
-        params = tuning(data, s, "circular", (x1, x2), "bilinear")
-        params.collect()
-        params = tuning(data, s, "gaussian", (x1, x2), "bilinear")
-        params.collect()
-
-        s = array([-pi/2, -pi/3, -pi/4, pi/4, pi/3, pi/2])
-        params = tuning(data, s, "gaussian")
-        params.collect()

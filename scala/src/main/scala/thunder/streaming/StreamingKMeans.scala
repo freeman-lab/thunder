@@ -5,6 +5,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.dstream.DStream
+import org.apache.spark.mllib.linalg.{Vectors, Vector}
+import org.apache.spark.mllib.streaming.StreamingKMeansModel
 
 import scala.util.Random.nextDouble
 import scala.util.Random.nextGaussian
@@ -115,12 +117,12 @@ class StreamingKMeans (
         case "pos" => (Array.fill(d)(nextDouble()), 0)
       }
     }
-    new StreamingKMeansModel(clusters.map(_._1), clusters.map(_._2))
+    new StreamingKMeansModel(clusters.map(_._1).map(x => Vectors.dense(x)), clusters.map(_._2))
   }
 
   // TODO: stop iterating if clusters have converged
   /** Update KMeans clusters by doing training passes over an RDD */
-  def update(data: RDD[Array[Double]], model: StreamingKMeansModel): StreamingKMeansModel = {
+  def update(data: RDD[Vector], model: StreamingKMeansModel): StreamingKMeansModel = {
 
     val centers = model.clusterCenters
     val counts = model.clusterCounts
@@ -132,25 +134,25 @@ class StreamingKMeans (
 
       // get sums and counts for updating each cluster
       val pointStats = closest.reduceByKey{
-        case ((x1, y1), (x2, y2)) => (x1.zip(x2).map{case (x, y) => x + y}, y1 + y2)}
+        case ((x1, y1), (x2, y2)) => (Vectors.dense(x1.toArray.zip(x2.toArray).map{case (x, y) => x + y}), y1 + y2)}
       val newPoints = pointStats.map{
         pair => (pair._1, (pair._2._1, pair._2._2))}.collectAsMap()
 
       a match {
         case 1 => for (newP <- newPoints) {
           // remove previous count scaling
-          centers(newP._1) = centers(newP._1).map(x => x * counts(newP._1))
+          centers(newP._1) = Vectors.dense(centers(newP._1).toArray.map(x => x * counts(newP._1)))
           // update sums
-          centers(newP._1) = centers(newP._1).zip(newP._2._1).map{case (x, y) => x + y}
+          centers(newP._1) = Vectors.dense(centers(newP._1).toArray.zip(newP._2._1.toArray).map{case (x, y) => x + y})
           // update counts
           counts(newP._1) += newP._2._2
           // rescale to compute new means (of both old and new points)
-          centers(newP._1) = centers(newP._1).map(x => x / counts(newP._1))
+          centers(newP._1) = Vectors.dense(centers(newP._1).toArray.map(x => x / counts(newP._1)))
         }
         case _ => for (newP <- newPoints) {
           // update centers with forgetting factor a
-          centers(newP._1) = centers(newP._1).zip(newP._2._1.map(x => x / newP._2._2)).map{
-            case (x, y) => x + a * (y - x)}
+          centers(newP._1) = Vectors.dense(centers(newP._1).toArray.zip(newP._2._1.toArray.map(x => x / newP._2._2)).map{
+            case (x, y) => x + a * (y - x)})
         }
       }
 
@@ -159,7 +161,7 @@ class StreamingKMeans (
 
     // log the cluster centers
     centers.zip(Range(0, centers.length)).foreach{
-      case (x, ix) => logInfo("Cluster center " + ix.toString + ": " + x.mkString(", "))}
+      case (x, ix) => logInfo("Cluster center " + ix.toString + ": " + x.toString)}
 
     new StreamingKMeansModel(centers, counts)
 
@@ -169,7 +171,7 @@ class StreamingKMeans (
    * Main streaming operation: initialize the KMeans model
    * and then update it based on new data from the stream.
    */
-  def runStreaming(data: DStream[Array[Double]]): DStream[Int] = {
+  def runStreaming(data: DStream[Vector]): DStream[Int] = {
     var model = initRandom()
     data.foreachRDD(RDD => model = update(RDD, model))
     data.map(point => model.predict(point))
@@ -197,7 +199,7 @@ object StreamingKMeans {
    * @param initializationMode Random initialization of cluster centers.
    * @return Output DStream of (Int) assignments of data points to clusters.
    */
-  def trainStreaming(input: DStream[Array[Double]],
+  def trainStreaming(input: DStream[Vector],
       k: Int,
       d: Int,
       a: Double,
@@ -234,13 +236,14 @@ object StreamingKMeans {
     val ssc = new StreamingContext(conf, Seconds(batchTime))
 
     /** Train KMeans model */
-    val data = LoadStreaming.fromText(ssc, directory)
+    val data = LoadStreaming.fromText(ssc, directory).map(x => Vectors.dense(x))
     val assignments = StreamingKMeans.trainStreaming(data, k, d, a, maxIterations, initializationMode)
 
     /** Print assignments (for testing) */
     assignments.print()
 
     ssc.start()
+    ssc.awaitTermination()
   }
 
 }

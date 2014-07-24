@@ -73,7 +73,7 @@ class StatefulBinnedStats (
     val currentCount = values.size
     val n = features.size
 
-    if ((currentCount != 0) & (n != 0)) {
+    if ((currentCount != 0) && (n != 0)) {
 
       // group new data by the features
       val pairs = features.zip(values)
@@ -163,6 +163,7 @@ object StatefulBinnedStats {
       conf.setSparkHome(System.getenv("SPARK_HOME"))
         .setJars(List("target/scala-2.10/thunder_2.10-0.1.0.jar"))
         .set("spark.executor.memory", "100G")
+        .set("spark.default.parallelism", "100")
     }
 
     /** Create Streaming Context */
@@ -194,6 +195,7 @@ object StatefulBinnedStats {
     SaveStreaming.asTextWithKeys(result, outputDirectory, Seq("r2-" + binName(0)))
 
     ssc.start()
+    ssc.awaitTermination()
   }
 
 }

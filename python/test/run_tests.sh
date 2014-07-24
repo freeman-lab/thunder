@@ -6,4 +6,5 @@ if [ -z "$SPARK_HOME" ]; then
 fi
 
 export PYTHONPATH=$PYTHONPATH:$SPARK_HOME/python:../
-nosetests
+export PYTHONPATH=$PYTHONPATH:$SPARK_HOME/python/lib/py4j-0.8.1-src.zip
+nosetests $@

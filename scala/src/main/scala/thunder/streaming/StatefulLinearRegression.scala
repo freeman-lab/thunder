@@ -227,6 +227,7 @@ object StatefulLinearRegression {
     //Save.saveStreamingDataAsText(out, outputDirectory, Seq("r2"))
 
     ssc.start()
+    ssc.awaitTermination()
   }
 
 }

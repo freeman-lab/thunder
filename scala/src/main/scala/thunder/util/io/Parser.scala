@@ -2,6 +2,7 @@ package thunder.util.io
 
 import java.nio.{ByteBuffer, ByteOrder}
 import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.linalg.Vectors
 
 
 /**
@@ -101,14 +102,14 @@ case class Parser(nKeys: Int = 0, format: String = "Int") {
   def getWithLabels(line: String): LabeledPoint = {
     val parts = line.split(',')
     val label = parts(0).toDouble
-    val features = parts(1).trim().split(' ').map(_.toDouble)
+    val features = Vectors.dense(parts(1).trim().split(' ').map(_.toDouble))
     LabeledPoint(label, features)
   }
 
   /** Single label per Array[Int], first value is the label */
   def getWithLabels(line: Array[Int]): LabeledPoint = {
     val label = line(0).toDouble
-    val features = line.slice(1, line.length).map(_.toDouble)
+    val features = Vectors.dense(line.slice(1, line.length).map(_.toDouble))
     LabeledPoint(label, features)
   }
 
@@ -116,7 +117,7 @@ case class Parser(nKeys: Int = 0, format: String = "Int") {
   def getWithLabels(line: Array[Byte]): LabeledPoint = {
     val tmp = convertBytes(line)
     val label = tmp(0).toInt
-    val features = tmp.slice(1, line.length)
+    val features = Vectors.dense(tmp.slice(1, line.length))
     LabeledPoint(label, features)
   }
 

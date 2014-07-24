@@ -31,6 +31,7 @@ object ExampleLoadStreaming {
     data.foreachRDD(rdd => println(rdd.count()))
 
     ssc.start()
+    ssc.awaitTermination()
 
   }
 }

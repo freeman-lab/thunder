@@ -1,8 +1,0 @@
-#!/bin/sh
-
-${SPARK_HOME?"Need to set SPARK_HOME to the location of your Spark installation"}
-
-PYTHONPATH="$SPARK_HOME/ec2/:$PYTHONPATH"
-PYTHONPATH="$SPARK_HOME/ec2/third_party/boto-2.4.1.zip/boto-2.4.1:$PYTHONPATH"
-cd "`dirname $0`"
-python ./thunder-ec2.py $@

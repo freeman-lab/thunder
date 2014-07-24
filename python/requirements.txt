@@ -3,3 +3,7 @@ numpy
 scipy
 scikit-learn
 PIL
+matplotlib
+mpld3
+jinja2
+nose

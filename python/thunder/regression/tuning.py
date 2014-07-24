@@ -1,38 +1,15 @@
+"""
+Standalone app for mass-unvariate tuning analyses
+"""
+
 import os
 import argparse
 import glob
-from thunder.regression.util import RegressionModel, TuningModel
-from thunder.util.load import load
-from thunder.util.save import save
+from thunder.regression import RegressionModel, TuningModel
+from thunder.utils import load
+from thunder.utils import save
 from pyspark import SparkContext
 
-
-def tuning(data, tuningmodelfile, tuningmode, regressmodelfile=None, regressmode=None):
-    """Estimate parameters of a tuning curve model,
-    optionally preceeded by regression
-
-    :param data: RDD of data points as key value pairs
-    :param tuningmodelfile: model parameters for tuning (string with file location, array, or tuple)
-    :param: tuningmode: form of tuning ("gaussian" or "circular")
-    :param regressmodelfile: model parameters for regression (default=None)
-    :param regressmode: form of regression ("linear" or "bilinear") (default=None)
-
-    :return params: tuning curve parameters
-    """
-    # create tuning model
-    tuningmodel = TuningModel.load(tuningmodelfile, tuningmode)
-
-    # get tuning curves
-    if regressmodelfile is not None:
-        # use regression results
-        regressmodel = RegressionModel.load(regressmodelfile, regressmode)
-        betas, stats, resid = regressmodel.fit(data)
-        params = tuningmodel.fit(betas)
-    else:
-        # use data
-        params = tuningmodel.fit(data)
-
-    return params
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="fit a parametric tuning curve to regression results")
@@ -53,10 +30,16 @@ if __name__ == "__main__":
         egg = glob.glob(os.path.join(os.environ['THUNDER_EGG'], "*.egg"))
         sc.addPyFile(egg[0])
 
-    data = load(sc, args.datafile, args.preprocess).cache()
-
-    params = tuning(data, args.tuningmodelfile, args.tuningmode, args.regressmodelfile, args.regressmode)
+    data = load(sc, args.datafile, args.preprocess)
+    tuningmodel = TuningModel.load(args.tuningmodelfile, args.tuningmode)
+    if args.regressmodelfile is not None:
+        # use regression results
+        regressmodel = RegressionModel.load(args.regressmodelfile, args.regressmode)
+        betas, stats, resid = regressmodel.fit(data)
+        params = tuningmodel.fit(betas)
+    else:
+        # use data
+        params = tuningmodel.fit(data)
 
     outputdir = args.outputdir + "-tuning"
-
     save(params, outputdir, "params", "matlab")

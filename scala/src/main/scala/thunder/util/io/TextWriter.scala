@@ -6,7 +6,7 @@ import thunder.util.Save
 
 /*** Class for writing an RDD to a text file */
 
-class TextWriter extends Writer {
+class TextWriter extends Writer with Serializable {
 
   def write(rdd: RDD[Double], fullFile: String) {
     val out = rdd.collect()

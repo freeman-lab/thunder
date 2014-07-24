@@ -3,6 +3,7 @@ package thunder.streaming
 import org.apache.spark.streaming.{Milliseconds, Seconds, StreamingContext}
 import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
+import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.util.StatCounter
 import org.apache.spark.mllib.util.LinearDataGenerator
 import cern.colt.matrix.{DoubleFactory1D, DoubleFactory2D}
@@ -137,7 +138,7 @@ class StreamingBasicSuite extends FunSuite {
     // create test directory and set up streaming data
     val testDir = Files.createTempDir()
     val ssc = new StreamingContext(conf, Seconds(1))
-    val data = LoadStreaming.fromText(ssc, testDir.toString)
+    val data = LoadStreaming.fromText(ssc, testDir.toString).map(x => Vectors.dense(x))
 
     // create and train KMeans model
     val KMeans = new StreamingKMeans().setK(k).setD(d).setAlpha(1).setInitializationMode("gauss").setMaxIterations(1)
@@ -164,7 +165,7 @@ class StreamingBasicSuite extends FunSuite {
     FileUtils.deleteDirectory(testDir)
 
     // compare estimated center to actual
-    assertSetsEqual(model.clusterCenters, centers, 0.1)
+    assertSetsEqual(model.clusterCenters.map(x => x.toArray), centers, 0.1)
   }
 
   test("streaming linear regression") {
@@ -182,16 +183,16 @@ class StreamingBasicSuite extends FunSuite {
     val data = LoadStreaming.fromTextWithLabels(ssc, testDir.toString)
 
     // create and train linear model
-    val LinearModel = new StreamingLinearRegression(2, 1, 10, "fixed")
+    val LinearModel = new StreamingLinearRegression(2, 1, 5, "fixed")
     var model = LinearModel.initFixed()
-    data.foreachRDD(RDD => model = LinearModel.update(RDD, model))
+    data.foreachRDD{RDD => model = LinearModel.update(RDD, model)}
     ssc.start()
 
     Thread.sleep(5000)
     for (i <- 0 until m) {
-      val samples = LinearDataGenerator.generateLinearInput(intercept, weights, n, 42, r)
+      val samples = LinearDataGenerator.generateLinearInput(intercept, weights, n, 42*(i+1), r)
       val file = new File(testDir, i.toString)
-      FileUtils.writeStringToFile(file, samples.map(x => x.label.toString + ", " + x.features.mkString(" ")).mkString("\n"))
+      FileUtils.writeStringToFile(file, samples.map(x => x.label.toString + ", " + x.features.toArray.mkString(" ")).mkString("\n"))
       Thread.sleep(Milliseconds(500).milliseconds)
     }
     Thread.sleep(Milliseconds(5000).milliseconds)
@@ -202,8 +203,8 @@ class StreamingBasicSuite extends FunSuite {
     FileUtils.deleteDirectory(testDir)
 
     // compare estimated parameters to actual
-    assertEqual(model.weights, weights, 0.1)
     assertEqual(model.intercept, intercept, 0.1)
+    assertEqual(model.weights.toArray, weights, 0.1)
 
   }
 

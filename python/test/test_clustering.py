@@ -1,7 +1,7 @@
 import shutil
 import tempfile
 from numpy import array, array_equal
-from thunder.clustering.kmeans import kmeans
+from thunder.clustering import KMeans
 from test_utils import PySparkTestCase
 
 
@@ -26,9 +26,10 @@ class TestKMeans(ClusteringTestCase):
 
         data = self.sc.parallelize(zip(range(1, 4), data_local))
 
-        labels, centers = kmeans(data, k=1, maxiter=20, tol=0.001)
-        assert array_equal(centers[0], array([1.0, 3.0, 4.0]))
-        assert array_equal(labels.map(lambda (_, v): v).collect(), array([0, 0, 0]))
+        model = KMeans(k=1, maxiter=20, tol=0.001).train(data)
+        labels = model.predict(data)
+        assert array_equal(model.centers[0], array([1.0, 3.0, 4.0]))
+        assert array_equal(labels.map(lambda (_, v): v[0]).collect(), array([0, 0, 0]))
 
 
 

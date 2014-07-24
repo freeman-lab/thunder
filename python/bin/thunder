@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+
+import os
+import glob
+
+spark = os.getenv('SPARK_HOME')
+if spark is None or spark == '':
+    raise Exception('You must assign the environemntal variable SPARK_HOME with the location of Spark')
+
+if os.getenv('PYTHONPATH') is None:
+	os.environ['PYTHONPATH'] = ""
+
+os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HOME'] + "/python:../"
+os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HOME'] + "/python/lib/py4j-0.8.1-src.zip"
+
+# if not running locally, check whether egg exists, and if not, build it
+master = os.getenv('MASTER')
+ec2 = os.path.isfile('/root/spark-ec2/cluster-url')
+
+if not ((master is None) or ("local" in master)) or ec2:
+
+  # get calling directory
+	calldir = os.path.dirname(os.path.realpath(__file__))
+
+	# get directory
+	dist = os.path.join(calldir, '../dist')
+
+	# check for egg
+	egg = glob.glob(os.path.join(dist, "*.egg"))
+
+	if len(egg) == 0:
+		os.system(os.path.join(calldir, 'build'))
+		egg = glob.glob(os.path.join(dist, "*.egg"))
+
+	os.environ['ADD_FILES'] = egg[0]
+
+os.system(os.path.join(spark, 'bin/pyspark'))

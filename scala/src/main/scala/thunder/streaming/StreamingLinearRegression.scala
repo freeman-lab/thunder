@@ -3,13 +3,14 @@ package thunder.streaming
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.streaming.dstream.DStream
-import org.apache.spark.mllib.regression.{LinearRegressionModel, GeneralizedLinearAlgorithm}
-import org.apache.spark.mllib.optimization._
+import org.apache.spark.mllib.linalg.Vectors
 
 import thunder.util.LoadStreaming
 import scala.util.Random._
-import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.SparkConf
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.regression.LinearRegressionModel
+import org.apache.spark.mllib.streaming.StreamingLinearRegressionWithSGD
 
 /**
  * Linear Regression on streaming data.
@@ -37,16 +38,12 @@ class StreamingLinearRegression (
   var d: Int,
   var stepSize: Double,
   var numIterations: Int,
-  var initializationMode: String) extends GeneralizedLinearAlgorithm[LinearRegressionModel] with Serializable {
-
-  val gradient = new SquaredGradient()
-  val updater = new SimpleUpdater()
-  @transient val optimizer =  new GradientDescent(gradient, updater).setStepSize(stepSize)
-    .setNumIterations(numIterations)
-    .setMiniBatchFraction(1.0)
+  var initializationMode: String) {
 
   /** Construct a StreamingLinearRegression object with default parameters */
   def this() = this(5, 1.0, 10, "fixed")
+
+  val algorithm = new StreamingLinearRegressionWithSGD(stepSize, numIterations).setIntercept(addIntercept = true)
 
   /** Set the number of features per data point (d). Default: 5
     * TODO: if possible, set this automatically based on first data point
@@ -68,29 +65,24 @@ class StreamingLinearRegression (
     this
   }
 
-  /** Create a Linear Regression model */
-  def createModel(weights: Array[Double], intercept: Double) = {
-    new LinearRegressionModel(weights, intercept)
-  }
-
   /** Initialize a Linear Regression model with fixed weights */
   def initFixed(): LinearRegressionModel = {
-    val weights = Array.fill(d)(1.0)
+    val weights = Vectors.dense(Array.fill(d)(1.0))
     val intercept = 0.0
-    createModel(weights, intercept)
+    algorithm.createModel(weights, intercept)
   }
 
   /** Initialize a Linear Regression model with random weights */
   def initRandom(): LinearRegressionModel = {
-    val weights = Array.fill(d)(nextGaussian())
+    val weights = Vectors.dense(Array.fill(d)(nextGaussian()))
     val intercept = nextGaussian()
-    createModel(weights, intercept)
+    algorithm.createModel(weights, intercept)
   }
 
   /** Update a Linear Regression model by running a gradient update */
   def update(rdd: RDD[LabeledPoint], model: LinearRegressionModel): LinearRegressionModel = {
     if (rdd.count() != 0) {
-      run(rdd, model.weights)
+      algorithm.run(rdd, model.weights)
     } else {
       model
     }
@@ -101,7 +93,7 @@ class StreamingLinearRegression (
     */
   def runStreaming(data: DStream[LabeledPoint]): DStream[Double] = {
     var model = initFixed()
-    data.foreachRDD(rdd => model = update(rdd, model))
+    data.foreachRDD{rdd => model = update(rdd, model)}
     data.map(x => model.predict(x.features))
   }
 }
@@ -162,6 +154,7 @@ object StreamingLinearRegression {
     predictions.print()
 
     ssc.start()
+    ssc.awaitTermination()
   }
 
 }

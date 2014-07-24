@@ -1,7 +1,7 @@
 import shutil
 import tempfile
 from numpy import array, allclose
-from thunder.util.load import subtoind, indtosub, getdims
+from thunder.utils import subtoind, indtosub, getdims
 from test_utils import PySparkTestCase
 
 
