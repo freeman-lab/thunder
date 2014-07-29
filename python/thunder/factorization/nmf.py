@@ -5,7 +5,7 @@ Class for performing non-negative matrix factorization
 import argparse, glob, os
 import numpy as np
 from pyspark import SparkContext
-from thunder.utils import load, save
+from thunder.utils import load, save, randomVector
 
 
 class NMF(object):
@@ -33,10 +33,10 @@ class NMF(object):
     w0 : RDD of nrows (tuple, array) pairs, each array of shape (k,), optional, default = None
         Value at which W is initialized
 
-    w_hist : Bool, optional, default = False
+    w_hist : bool, optional, default = False
         If true, keep track of convergence of w at each iteration
 
-    recon_hist : Bool, optional, default = False
+    recon_hist : bool, optional, default = False
         If true, keep track of reconstruction error at each iteration
 
     Attributes
@@ -94,23 +94,6 @@ class NMF(object):
         ----------
         self : returns an instance of self.
         """
-
-        # a a helper function generate a random vector by setting a unique seed
-        def randomVector(key, seed, k):
-            if not np.iterable(key):
-                key = [key]
-
-            # input checking
-            assert(np.iterable(key))
-            assert(np.iterable(seed))
-
-            #  create unique key
-            uniqueKey = list(key)
-            uniqueKey.extend(seed)
-            np.random.seed(uniqueKey)
-
-            # generate random output
-            return np.random.rand(k)
 
         # a helper function to take the Frobenius norm of two zippable RDDs
         def rddFrobeniusNorm(A, B):
