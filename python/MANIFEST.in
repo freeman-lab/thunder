@@ -1,3 +1,4 @@
 include *.rst
 include *.txt
 include thunder/utils/data/*.txt
+include thunder/lib/*.jar

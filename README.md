@@ -1,53 +1,41 @@
-.. figure:: https://travis-ci.org/freeman-lab/thunder.png
-   :align: left
-   :target: https://travis-ci.org/freeman-lab/thunder
-
 thunder
 =======
 
-Large-scale neural data analysis with Spark - `project page`_
+<div class="row">
+  <a href="http://freeman-lab.github.io/thunder/">
+      <img src="http://thefreemanlab.com/thunder/docs/_static/thumbnail_row.png" width="800px" height="125px">
+  </a>
+</div>
 
-.. _project page: http://freeman-lab.github.io/thunder/
+Large-scale neural data analysis with Spark - [project page](http://freeman-lab.github.io/thunder/)
+
+[![Build Status](https://travis-ci.org/freeman-lab/thunder.png?branch=master)](https://travis-ci.org/freeman-lab/thunder)
 
 About
 -----
 
 thunder is a library for analyzing large-scale neural data. It's fast to run, easy to develop for, and can be used interactively. It is built on Spark, a new framework for cluster computing.
 
-thunder includes utilties for data loading and saving, and modular functions for time series statistics, matrix decompositions, and fitting algorithms. Analyses can easily be scripted or combined. It is written in Spark's Python API (Pyspark), making use of scipy, numpy, and scikit-learn. 
+thunder includes utilties for data loading and saving, and modular functions for time series statistics, matrix decompositions, and fitting algorithms. Analyses can easily be scripted or combined. It is written in Spark's Python API (Pyspark), making use of scipy, numpy, and scikit-learn.
 
 Documentation
 -------------
-This README contains basic information for installation and usage. See the `documentation`_ for more details, example usage, and API references. If you have a problem, question, or idea, post to the `mailing list`_. If you find a bug, submit an `issue`_. If posting an issue, please provide information about your environment (e.g. local usage or EC2, operating system) and instructions for reproducing the error.
-
-.. _documentation: http://thefreemanlab.com/thunder/docs/
-.. _mailing list: https://groups.google.com/forum/?hl=en#!forum/thunder-user
-.. _issue: https://github.com/freeman-lab/thunder/issues
+This README contains basic information for installation and usage. See the [documentation](http://thefreemanlab.com/thunder/docs/) for more details, example usage, and API references. If you have a problem, question, or idea, post to the [mailing list](https://groups.google.com/forum/?hl=en#!forum/thunder-user). If you find a bug, submit an [issue](https://github.com/freeman-lab/thunder/issues). If posting an issue, please provide information about your environment (e.g. local usage or EC2, operating system) and instructions for reproducing the error.
 
 Quick start
 -----------
 
-thunder is designed to run on a cluster, but local testing is a great way to learn and develop. Many computers can install it with just a few simple steps. If you aren't currently using Python for scientific computing, `Anaconda`_ is highly recommended.
+thunder is designed to run on a cluster, but local testing is a great way to learn and develop. Many computers can install it with just a few simple steps. If you aren't currently using Python for scientific computing, [Anaconda](https://store.continuum.io/cshop/anaconda/) is highly recommended.
 
-.. _Anaconda: https://store.continuum.io/cshop/anaconda/
-
-1) Download the latest, pre-built version of `Spark`_, and set one environmental variable
-
-.. _Spark: http://spark.apache.org/downloads.html
-
-::
+1) Download the latest, pre-built version of [Spark](http://spark.apache.org/downloads.html), and set one environmental variable
 
 	export SPARK_HOME=/your/path/to/spark
 
 2) Install thunder
 
-:: 
-
 	pip install thunder-python
 
 3) Start thunder from the terminal
-
-:: 
 
 	thunder
 	>> from thunder.factorization import ICA
@@ -56,19 +44,13 @@ thunder is designed to run on a cluster, but local testing is a great way to lea
 
 To run in iPython, just set this environmental variable before staring:
 
-::
-
 	export IPYTHON=1
 
 To run analyses as standalone jobs, use the submit script
 
-::
-
 	thunder-submit <package/analysis> <datadirectory> <outputdirectory> <opts>
 
 We also include a script for launching an Amazon EC2 cluster with thunder preinstalled
-
-::
 
 	thunder-ec2 -k mykey -i mykey.pem -s <number-of-nodes> launch <cluster-name>
 
@@ -76,7 +58,7 @@ We also include a script for launching an Amazon EC2 cluster with thunder preins
 Analyses
 --------
 
-thunder currently includes five packages: classification (decoding), clustering, factorization, regression, and timeseries, as well as an utils package for loading and saving (see Input format and Output format) and other utilities (e.g. matrix operations). Scripts can be used to run standalone analyses, but the underlying classes and functions can be used from within the PySpark shell for easy interactive analysis.
+thunder currently includes five packages: classification (decoding), clustering, factorization, regression, and timeseries, as well as utilities for loading and saving data and basic visualization. Scripts can be used to run standalone analyses, but the underlying classes and functions can be used from within the PySpark shell for easy interactive analysis.
 
 Input and output
 ----------------

@@ -1,1 +1,2 @@
-from .base import RegressionModel, TuningModel
+from .regress import RegressionModel
+from .tuning import TuningModel

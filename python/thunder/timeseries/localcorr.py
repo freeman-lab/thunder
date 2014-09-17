@@ -2,13 +2,9 @@
 Class and standalone app for local correlation
 """
 
-import os
 import argparse
-import glob
 from numpy import corrcoef
-from pyspark import SparkContext
-from thunder.utils import load, getdims
-from thunder.utils import save
+from thunder.utils import ThunderContext, save, indtosub, subtoind, getdims
 
 
 class LocalCorr(object):
@@ -66,6 +62,9 @@ class LocalCorr(object):
         # get boundaries using dimension keys
         dims = getdims(data)
 
+        if len(dims.max) not in [2, 3]:
+            raise NotImplementedError('keys must have 2 or 3 dimensions to compute local correlations')
+
         # flat map to key value pairs where the key is neighborhood identifier and value is time series
         neighbors = data.flatMap(lambda (k, v): maptoneighborhood(k, v, self.neighborhood, dims.min[0:2], dims.max[0:2]))
 
@@ -76,28 +75,25 @@ class LocalCorr(object):
         result = data.join(means)
 
         # get correlations
-        corr = result.mapValues(lambda x: corrcoef(x[0], x[1])[0, 1]).sortByKey()
+        corr = result.mapValues(lambda x: corrcoef(x[0], x[1])[0, 1])
 
-        return corr
+        # force sorting, but reverse keys for correct ordering
+        return corr.map(lambda (k, v): (k[::-1], v)).sortByKey().map(lambda (k, v): (k[::-1], v))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="correlate time series with neighbors")
-    parser.add_argument("master", type=str)
     parser.add_argument("datafile", type=str)
     parser.add_argument("outputdir", type=str)
     parser.add_argument("sz", type=int)
-    parser.add_argument("--preprocess", choices=("raw", "dff", "dff-highpass", "sub"), default="raw", required=False)
+    parser.add_argument("--preprocess", choices=("raw", "dff", "sub", "dff-highpass", "dff-percentile"
+                        "dff-detrendnonlin", "dff-detrend-percentile"), default="raw", required=False)
 
     args = parser.parse_args()
 
-    sc = SparkContext(args.master, "localcorr")
+    tsc = ThunderContext.start(appName="localcorr")
 
-    if args.master != "local":
-        egg = glob.glob(os.path.join(os.environ['THUNDER_EGG'], "*.egg"))
-        sc.addPyFile(egg[0])
-
-    data = load(sc, args.datafile, args.preprocess).cache()
+    data = tsc.loadText(args.datafile, filter=args.preprocess).cache()
     corrs = LocalCorr(args.sz).calc(data)
 
     outputdir = args.outputdir + "-localcorr"

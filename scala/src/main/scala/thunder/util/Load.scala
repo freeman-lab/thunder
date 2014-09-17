@@ -5,10 +5,12 @@ package thunder.util
 import thunder.util.io.Parser
 import thunder.util.io.PreProcessor
 import thunder.util.io.hadoop.FixedLengthBinaryInputFormat
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.hadoop.io.{BytesWritable, LongWritable}
+import scala.reflect.{classTag, ClassTag}
 
 
 object Load {
@@ -74,10 +76,14 @@ object Load {
    */
   def fromBinary(sc: SparkContext,
                dir: String,
+               recordLength: Int,
                preProcessMethod: String = "raw",
                format: String = "int"): RDD[Array[Double]] = {
     val parser = new Parser(0, format)
-    val lines = sc.newAPIHadoopFile[LongWritable, BytesWritable, FixedLengthBinaryInputFormat](dir)
+
+    val conf = new Configuration()
+    val lines = sc.newAPIHadoopFile(
+      dir, classOf[FixedLengthBinaryInputFormat], classOf[LongWritable], classOf[BytesWritable], conf)
     val data = lines.map{ case (k, v) => v.getBytes}
 
     if (preProcessMethod != "raw") {
@@ -103,12 +109,16 @@ object Load {
    */
   def fromBinaryWithKeys(sc: SparkContext,
                  dir: String,
+                 recordLength: Int,
                  preProcessMethod: String = "raw",
                  nKeys: Int = 3,
                  format: String = "int"): RDD[(Array[Int], Array[Double])] = {
 
     val parser = new Parser(nKeys, format)
-    val lines = sc.newAPIHadoopFile[LongWritable, BytesWritable, FixedLengthBinaryInputFormat](dir)
+    val conf = new Configuration()
+    conf.set("recordLength", "204")
+    val lines = sc.newAPIHadoopFile(
+      dir, classOf[FixedLengthBinaryInputFormat], classOf[LongWritable], classOf[BytesWritable], conf)
     val data = lines.map{ case (k, v) => v.getBytes}
 
     if (preProcessMethod != "raw") {

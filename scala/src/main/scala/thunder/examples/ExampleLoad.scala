@@ -21,7 +21,7 @@ object ExampleLoad {
 
     val sc = new SparkContext(conf)
 
-    val data = Load.fromBinaryWithKeys(sc, file, nKeys = 1)
+    val data = Load.fromBinaryWithKeys(sc, file, recordLength = args(2).toInt, nKeys = 3, format="short")
 
     data.take(10).foreach{x =>
       println(x._1.mkString(" "))

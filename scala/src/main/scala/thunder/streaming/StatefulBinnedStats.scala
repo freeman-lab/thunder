@@ -28,10 +28,9 @@ case class BinnedStats (var counterTotal: StatCounter, var counterBins: StatCoun
     1 - counterBins.combinedVariance / counterTotal.variance
   }
 
-  // TODO minimum should only be for data where count is not 0
   def weightedMean(featureValues: Array[Double]): Double = {
     val means = counterBins.mean
-    val pos = means.map(x => x - means.min)
+    val pos = means.map(x => (x - counterTotal.mean) / counterTotal.mean).map{x => if (x < 0) 0 else x}
     val weights = pos.map(x => x / pos.sum)
     weights.zip(featureValues).map{case (x,y) => x * y}.sum
   }
@@ -183,16 +182,16 @@ object StatefulBinnedStats {
     val binName = params.getBinName
 
     /** Load streaming data */
-    val data = LoadStreaming.fromTextWithKeys(ssc, directory, params.getDims.size, params.getDims)
+    val data = LoadStreaming.fromBinaryWithKeys(ssc, directory, params.getDims.size, params.getDims, format="short")
 
     /** Train the models */
     val state = StatefulBinnedStats.trainStreaming(data, binKeys, binValues(0).length)
 
     /** Print results (for testing) */
-    val result = state.mapValues(x => Array(x.r2))
+    val result = state.mapValues(x => Array(x.r2, x.weightedMean(binValues(0))))
 
     /** Collect output */
-    SaveStreaming.asTextWithKeys(result, outputDirectory, Seq("r2-" + binName(0)))
+    SaveStreaming.asBinaryWithKeys(result, outputDirectory, Seq("r2-" + binName(0), "tuning-" + binName(0)))
 
     ssc.start()
     ssc.awaitTermination()

@@ -3,6 +3,23 @@
 API Reference
 =============
 
+Decoding
+-------------
+
+.. automodule:: thunder.decoding
+   :no-members:
+   :no-inherited-members:
+
+.. currentmodule:: thunder
+
+.. autosummary::
+	:toctree: generated/
+	:template: class.rst
+
+	decoding.uniclassify.MassUnivariateClassifier
+	decoding.uniclassify.GaussNaiveBayesClassifier
+	decoding.uniclassify.TTestClassifier
+
 Factorization
 -------------
 
@@ -16,10 +33,10 @@ Factorization
 	:toctree: generated/
 	:template: class.rst
 
-	factorization.PCA
-	factorization.ICA
-	factorization.NMF
-	factorization.SVD
+	factorization.pca.PCA
+	factorization.ica.ICA
+	factorization.nmf.NMF
+	factorization.svd.SVD
 
 
 Regression
@@ -35,13 +52,13 @@ Regression
 	:toctree: generated/
 	:template: class.rst
 
-	regression.RegressionModel
-	regression.TuningModel
-	regression.base.MeanRegressionModel
-	regression.base.LinearRegressionModel
-	regression.base.BilinearRegressionModel
-	regression.base.GaussianTuningModel
-	regression.base.CircularTuningModel
+	regression.regress.RegressionModel
+	regression.regress.MeanRegressionModel
+	regression.regress.LinearRegressionModel
+	regression.regress.BilinearRegressionModel
+	regression.tuning.TuningModel
+	regression.tuning.GaussianTuningModel
+	regression.tuning.CircularTuningModel
 
 
 Clustering
@@ -57,7 +74,7 @@ Clustering
 	:toctree: generated/
 	:template: class.rst
 
-	clustering.KMeans
+	clustering.kmeans.KMeans
 
 
 Time Series
@@ -73,11 +90,11 @@ Time Series
 	:toctree: generated/
 	:template: class.rst
 
-	timeseries.Fourier
-	timeseries.Stats
-	timeseries.Query
-	timeseries.CrossCorr
-	timeseries.LocalCorr
+	timeseries.fourier.Fourier
+	timeseries.stats.Stats
+	timeseries.query.Query
+	timeseries.crosscorr.CrossCorr
+	timeseries.localcorr.LocalCorr
 
 Utilities
 -------------
@@ -90,10 +107,16 @@ Utilities
 
 .. autosummary::
 	:toctree: generated/
+	:template: class.rst
+
+	utils.context.ThunderContext
+
+.. autosummary::
+	:toctree: generated/
 	:template: function.rst
 
-	utils.load
-	utils.save
+	utils.save.save
+	utils.save.pack
 
 
 	

@@ -8,13 +8,12 @@ from thunderdatatest import ThunderDataTest
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="run mllib performance tests")
-    parser.add_argument("master", type=str)
     parser.add_argument("numtrials", type=int)
     parser.add_argument("datatype", type=str, choices=("create", "datafile"))
     parser.add_argument("persistencetype", type=str, choices=("memory", "disk", "none"))
     parser.add_argument("testname", type=str)
     parser.add_argument("--numrecords", type=int, default=1000, required=False)
-    parser.add_argument("--numdims", type=int, required=False)
+    parser.add_argument("--numdims", type=int, default=5, required=False)
     parser.add_argument("--numpartitions", type=int, default=2, required=False)
     parser.add_argument("--numiterations", type=int, required=False)
     parser.add_argument("--savefile", type=str, default=None, required=False)
@@ -30,11 +29,7 @@ if __name__ == "__main__":
         if args.savefile is None:
             raise ValueError("must specify a savefile location if test includes saving, use '--savefile myfile' ")
 
-    sc = SparkContext(args.master, "ThunderTestRunner: " + args.testname)
-
-    if args.master != "local":
-        egg = glob.glob(os.path.join(os.environ['THUNDER_EGG'], "*.egg"))
-        sc.addPyFile(egg[0])
+    sc = SparkContext(appName="ThunderTestRunner: " + args.testname)
 
     test = ThunderDataTest.initialize(args.testname, sc)
 

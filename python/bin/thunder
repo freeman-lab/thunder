@@ -2,13 +2,14 @@
 
 import os
 import glob
+import thunder
 
 spark = os.getenv('SPARK_HOME')
 if spark is None or spark == '':
     raise Exception('You must assign the environemntal variable SPARK_HOME with the location of Spark')
 
 if os.getenv('PYTHONPATH') is None:
-	os.environ['PYTHONPATH'] = ""
+    os.environ['PYTHONPATH'] = ""
 
 os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HOME'] + "/python:../"
 os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HOME'] + "/python/lib/py4j-0.8.1-src.zip"
@@ -17,21 +18,33 @@ os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HO
 master = os.getenv('MASTER')
 ec2 = os.path.isfile('/root/spark-ec2/cluster-url')
 
+# get calling directory
+calldir = os.path.dirname(os.path.realpath(__file__))
+
+# add python script
+os.environ['PYTHONSTARTUP'] = os.path.join(os.path.dirname(os.path.realpath(thunder.__file__)), 'utils/shell.py')
+
 if not ((master is None) or ("local" in master)) or ec2:
 
-  # get calling directory
-	calldir = os.path.dirname(os.path.realpath(__file__))
+    # get directory
+    dist = os.path.join(calldir, '../dist')
 
-	# get directory
-	dist = os.path.join(calldir, '../dist')
+    # check for egg
+    egg = glob.glob(os.path.join(dist, "thunder_python-" + str(thunder.__version__) + "*.egg"))
 
-	# check for egg
-	egg = glob.glob(os.path.join(dist, "*.egg"))
+    # build if egg not found
+    if len(egg) == 0:
+        os.system(os.path.join(calldir, 'build'))
+        egg = glob.glob(os.path.join(dist, "thunder_python-" + str(thunder.__version__) + "*.egg"))
 
-	if len(egg) == 0:
-		os.system(os.path.join(calldir, 'build'))
-		egg = glob.glob(os.path.join(dist, "*.egg"))
+    os.environ['ADD_FILES'] = egg[0]
 
-	os.environ['ADD_FILES'] = egg[0]
+# get location of jar and add to the submit classpath
+jar = os.path.join(os.path.dirname(os.path.realpath(thunder.__file__)), 'lib/thunder_2.10-'+str(thunder.__version__)+'.jar')
 
-os.system(os.path.join(spark, 'bin/pyspark'))
+if os.getenv('SPARK_SUBMIT_CLASSPATH') is None:
+    os.environ['SPARK_SUBMIT_CLASSPATH'] = ""
+
+os.environ['SPARK_SUBMIT_CLASSPATH'] = os.environ['SPARK_SUBMIT_CLASSPATH'] + ":" + jar
+
+os.system(os.path.join(spark, 'bin/pyspark --jars ' + jar))

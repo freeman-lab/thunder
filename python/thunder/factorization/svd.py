@@ -5,7 +5,7 @@ Class for performing Singular Value Decomposition
 from numpy import random, sum, argsort, dot, outer, sqrt
 from scipy.linalg import inv, orth
 from numpy.linalg import eigh
-from thunder.utils.matrices import RowMatrix
+from thunder.utils import RowMatrix
 
 
 class SVD(object):

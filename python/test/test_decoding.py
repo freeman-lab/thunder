@@ -3,7 +3,7 @@ import tempfile
 from numpy import array, vstack
 from numpy.testing import assert_array_almost_equal
 from scipy.stats import ttest_ind
-from thunder.classification import MassUnivariateClassifier
+from thunder.decoding import MassUnivariateClassifier
 from test_utils import PySparkTestCase
 
 

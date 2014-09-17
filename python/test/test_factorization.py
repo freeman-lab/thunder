@@ -72,7 +72,7 @@ class TestICA(FactorizationTestCase):
     def test_ica(self):
 
         random.seed(42)
-        data, s, a = DataSets.make(self.sc, "ica", nrows=100, params=True)
+        data, s, a = DataSets.make(self.sc, "ica", nrows=100, returnparams=True)
 
         ica = ICA(c=2, svdmethod="direct", seed=1)
         ica.fit(data)
@@ -106,22 +106,16 @@ class TestNMF(FactorizationTestCase):
         h0 = array(
             [[0.09082617,  0.85490047,  0.57234593],
              [0.82766740,  0.21301186,  0.90913979]])
-        w0_local = array(
-            [[0.40967962,  0.82131499],
-             [0.98889171,  0.54361205],
-             [0.08074117,  0.44954983],
-             [0.68648657,  0.71598381]])
-        w0 = self.sc.parallelize(zip(keys, w0_local))
 
         # if the rows of h are not normalized on each iteration:
         h_true = array(
-            [[0.88909291,   0.        ,   0.45868362],
-             [1.54548542,   6.33549752,  10.65274926]])
+            [[0.    ,    0.6010,    0.9163],
+             [0.8970,    0.1556,    0.7423]])
         w_true = array(
-            [[0.67478533,  0.47374843],
-             [0.08587805,  0.12829046],
-             [0.        ,  0.58218579],
-             [5.34371512,  0.14884191]])
+            [[4.5885,    1.5348],
+             [1.3651,    0.2184],
+             [5.9349,    1.0030],
+             [0.    ,    5.5147]])
 
         # if the columns of h are normalized (as in the current implementation):
         scale_mat = diag(norm(h_true, axis=1))
@@ -129,12 +123,13 @@ class TestNMF(FactorizationTestCase):
         w_true = dot(w_true, scale_mat)
 
         # calculate NMF using the Thunder implementation
-        nmf_thunder = NMF(k=2, method="als", h0=h0, w0=w0, maxiter=20)
+        # (maxiter=9 corresponds with Matlab algorithm)
+        nmf_thunder = NMF(k=2, method="als", h0=h0, maxiter=9)
         nmf_thunder.calc(data)
         h_thunder = nmf_thunder.h
         w_thunder = array(nmf_thunder.w.values().collect())
 
-        tol = 1e-04  # allow small error
+        tol = 1e-03  # allow small error
         assert(allclose(w_thunder, w_true, atol=tol))
         assert(allclose(h_thunder, h_true, atol=tol))
 
@@ -149,10 +144,10 @@ class TestNMF(FactorizationTestCase):
             [5.0, 1.0, 4.0]])
         data = self.sc.parallelize(zip([array([i]) for i in range(data_local.shape[0])], data_local))
 
-        nmf_thunder = NMF(k=2)
+        nmf_thunder = NMF(k=2, recon_hist='final')
         nmf_thunder.calc(data)
 
         # check to see if Thunder's solution achieves close-to-optimal reconstruction error
         # scikit-learn's solution achieves 2.993952
         # matlab's non-deterministic implementation usually achieves < 2.9950 (when it converges)
-        assert(nmf_thunder.rec_err < 2.9950)
+        assert(nmf_thunder.recon_err < 2.9950)

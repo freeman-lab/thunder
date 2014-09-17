@@ -2,10 +2,10 @@
 Utilities for loading and preprocessing data
 """
 
-import os
-import glob
 import pyspark
-from numpy import array, mean, cumprod, append, mod, ceil, size, polyfit, polyval, arange, percentile, inf, subtract
+from numpy import array, mean, cumprod, append, mod, ceil, size, \
+    polyfit, polyval, arange, percentile, inf, subtract, \
+    asarray, ravel_multi_index
 from scipy.signal import butter, lfilter
 
 
@@ -52,6 +52,7 @@ class Parser(object):
 
 class PreProcessor(object):
     """Class for preprocessing data"""
+     # TODO Refactor to make it easier to combine options
 
     def __init__(self, preprocessmethod):
         if preprocessmethod == "sub":
@@ -91,6 +92,35 @@ class PreProcessor(object):
                 p = polyfit(x, y, 5)
                 yy = polyval(p, x)
                 return y - yy
+
+        if preprocessmethod == "dff-detrendnonlin-percentile":
+
+            def func(y):
+                # first do nonlinear detrending (but don't subtract the intercept)
+                x = arange(1, len(y)+1)
+                p = polyfit(x, y, 5)
+                p[-1] = 0  # do not subtract intercept
+                yy = polyval(p, x)
+                y = y - yy
+
+                # then take 20th percentile as baseline
+                mnval = percentile(y, 20)
+                y = (y - mnval) / (mnval + 0.1)
+                return y
+
+        if preprocessmethod == "dff-detrend-percentile":
+
+            def func(y):
+                # first do linear detrending (but don't subtract the intercept)
+                x = arange(1, len(y)+1)
+                p = polyfit(x, y, 1)
+                yy = p[0] * x  # subtract off just the slope term
+                y = y - yy
+
+                # then take 20th percentile as baseline
+                mnval = percentile(y, 20)
+                y = (y - mnval) / (mnval + 0.1)
+                return y
 
         if preprocessmethod == "dff-highpass":
             fs = 1
@@ -144,81 +174,90 @@ def getdims(data):
     return d
 
 
-def subtoind(data, dims):
-    """Convert subscript indexing to linear indexing"""
-
-    def subtoind_inline(k, dimprod):
-        return sum(map(lambda (x, y): (x - 1) * y, zip(k[1:], dimprod))) + k[0]
-    if size(dims) > 1:
-        dimprod = cumprod(dims)[0:-1]
-        if isrdd(data):
-            return data.map(lambda (k, v): (subtoind_inline(k, dimprod), v))
-        else:
-            return map(lambda (k, v): (subtoind_inline(k, dimprod), v), data)
-    else:
-        return data.map(lambda (k, v): (k[0], v))
+def _check_order(order):
+    if not order in ('C', 'F'):
+        raise TypeError("Order %s not understood, should be 'C' or 'F'.")
 
 
-def indtosub(data, dims):
-    """Convert linear indexing to subscript indexing"""
-
-    def indtosub_inline(k, dimprod):
-        return tuple(map(lambda (x, y): int(mod(ceil(float(k)/y) - 1, x) + 1), dimprod))
-
-    if size(dims) > 1:
-        dimprod = zip(dims, append(1, cumprod(dims)[0:-1]))
-        if isrdd(data):
-            return data.map(lambda (k, v): (indtosub_inline(k, dimprod), v))
-        else:
-            return map(lambda (k, v): (indtosub_inline(k, dimprod), v), data)
-
-    else:
-        return data
-
-
-def load(sc, datafile, preprocessmethod="raw", nkeys=3, npartitions=None):
-    """Load data from a text file (or a directory of files) with format
-    <k1> <k2> ... <t1> <t2> ...
-    where <k1> <k2> ... are keys (Int) and <t1> <t2> ... are the data values (Double)
-    If passed a directory, will automatically sort files by name
+def subtoind(data, dims, order='F', onebased=True):
+    """Convert subscript indexing to linear indexing
 
     Parameters
     ----------
-    sc : SparkContext
-        The Spark Context
+    order : str, 'C' or 'F', default = 'F'
+        Specifies row-major or column-major array indexing. See numpy.ravel_multi_index.
 
-    datafile : str
-        Location of raw data
-
-    preprocessmethod : str, optional, default = "raw" (no preprocessing)
-        Which preprocessing to perform
-
-    nkeys : int, optional, default = 3
-        Number of keys per data point
-
-    npartitions : int, optional, default = None
-        Number of partitions
-
-    Returns
-    -------
-    data : RDD of (tuple, array) pairs
-        The parsed and preprocessed data as an RDD
+    onebased : boolean, default = True
+        True if subscript indices start at 1, False if they start at 0
     """
-    # TODO: Add support for binary files using the new hadoop input format support
+    _check_order(order)
 
-    if os.path.isdir(datafile):
-        files = sorted(glob.glob(os.path.join(datafile, '*')))
-        datafile = ''.join([files[x] + ',' for x in range(0, len(files))])[0:-1]
+    def onebased_prod(x_y):
+        x, y = x_y
+        return (x - 1) * y
 
-    lines = sc.textFile(datafile, npartitions)
-    parser = Parser(nkeys)
+    def zerobased_prod(x_y):
+        x, y = x_y
+        return x * y
 
-    data = lines.map(parser.get)
+    def subtoind_inline_colmajor(k, dimprod, p_func):
+        return sum(map(p_func, zip(k[1:], dimprod))) + k[0]
 
-    if preprocessmethod != "raw":
-        preprocessor = PreProcessor(preprocessmethod)
-        data = data.mapValues(preprocessor.get)
+    def subtoind_inline_rowmajor(k, revdimprod, p_func):
+        return sum(map(p_func, zip(k[:-1], revdimprod))) + k[-1]
 
-    return data
+    if size(dims) > 1:
+        if order == 'F':
+            dimprod = cumprod(dims)[0:-1]
+            inline_fcn = subtoind_inline_colmajor
+        else:
+            dimprod = cumprod(dims[::-1])[0:-1][::-1]
+            inline_fcn = subtoind_inline_rowmajor
+
+        prod_fcn = onebased_prod if onebased else zerobased_prod
+
+        if isrdd(data):
+            return data.map(lambda (k, v): (inline_fcn(k, dimprod, prod_fcn), v))
+        else:
+            return map(lambda (k, v): (inline_fcn(k, dimprod, prod_fcn), v), data)
+
+    else:
+        if isrdd(data):
+            return data.map(lambda (k, v): (k[0], v))
+        else:
+            return map(lambda (k, v): (k[0], v), data)
 
 
+def indtosub(data, dims, order='F', onebased=True):
+    """Convert linear indexing to subscript indexing
+
+    Parameters
+    ----------
+    order : str, 'C' or 'F', default = 'F'
+        Specifies row-major or column-major array indexing. See numpy.unravel_index.
+
+    onebased : boolean, default = True
+        True if generated subscript indices are to start at 1, False to start at 0
+    """
+    _check_order(order)
+
+    def indtosub_inline_onebased(k, dimprod):
+        return tuple(map(lambda (x, y): int(mod(ceil(float(k)/y) - 1, x) + 1), dimprod))
+
+    def indtosub_inline_zerobased(k, dimprod):
+        return tuple(map(lambda (x, y): int(mod(ceil(float(k+1)/y) - 1, x)), dimprod))
+
+    inline_fcn = indtosub_inline_onebased if onebased else indtosub_inline_zerobased
+
+    if size(dims) > 1:
+        if order == 'F':
+            dimprod = zip(dims, append(1, cumprod(dims)[0:-1]))
+        else:
+            dimprod = zip(dims, append(1, cumprod(dims[::-1])[0:-1])[::-1])
+
+        if isrdd(data):
+            return data.map(lambda (k, v): (inline_fcn(k, dimprod), v))
+        else:
+            return map(lambda (k, v): (inline_fcn(k, dimprod), v), data)
+    else:
+        return data

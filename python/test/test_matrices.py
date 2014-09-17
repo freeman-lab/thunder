@@ -18,8 +18,8 @@ class MatrixRDDTestCase(PySparkTestCase):
 class TestElementWise(MatrixRDDTestCase):
 
     def test_elementwise_rdd(self):
-        mat1 = RowMatrix(self.sc.parallelize([(1, array([1, 2, 3])), (2, array([4, 5, 6]))]))
-        mat2 = RowMatrix(self.sc.parallelize([(1, array([7, 8, 9])), (2, array([10, 11, 12]))]))
+        mat1 = RowMatrix(self.sc.parallelize([(1, array([1, 2, 3])), (2, array([4, 5, 6]))], 2))
+        mat2 = RowMatrix(self.sc.parallelize([(1, array([7, 8, 9])), (2, array([10, 11, 12]))], 2))
         result = mat1.elementwise(mat2, add).collect()
         truth = array([[8, 10, 12], [14, 16, 18]])
         assert array_equal(result, truth)
@@ -32,8 +32,8 @@ class TestElementWise(MatrixRDDTestCase):
 class TestTimes(MatrixRDDTestCase):
 
     def test_times_rdd(self):
-        mat1 = RowMatrix(self.sc.parallelize([(1, array([1, 2, 3])), (2, array([4, 5, 6]))]))
-        mat2 = RowMatrix(self.sc.parallelize([(1, array([7, 8, 9])), (2, array([10, 11, 12]))]))
+        mat1 = RowMatrix(self.sc.parallelize([(1, array([1, 2, 3])), (2, array([4, 5, 6]))], 2))
+        mat2 = RowMatrix(self.sc.parallelize([(1, array([7, 8, 9])), (2, array([10, 11, 12]))], 2))
         truth = array([[47, 52, 57], [64, 71, 78], [81, 90, 99]])
         resultA = mat1.times(mat2)
         resultB = mat1.times(mat2, "accum")

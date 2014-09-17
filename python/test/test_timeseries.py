@@ -1,4 +1,3 @@
-import os
 import shutil
 import tempfile
 from numpy import array, allclose, mean, median, std, corrcoef
@@ -146,9 +145,9 @@ class TestQuery(TimeSeriesTestCase):
         data = self.sc.parallelize(data_local)
 
         inds = array([array([1, 2]), array([3])])
-        ts = Query(inds).calc(data)
-        assert(allclose(ts[0, :], array([1.5, 2., 3.5])))
-        assert(allclose(ts[1, :], array([4.0, 2.0, 1.0])))
+        qry = Query(inds).calc(data)
+        assert(allclose(qry.values[0, :], array([1.5, 2., 3.5])))
+        assert(allclose(qry.values[1, :], array([4.0, 2.0, 1.0])))
 
     def test_query_linear(self):
         data_local = [
@@ -160,9 +159,9 @@ class TestQuery(TimeSeriesTestCase):
         data = self.sc.parallelize(data_local)
 
         inds = array([array([1, 2]), array([3])])
-        ts = Query(inds).calc(data)
-        assert(allclose(ts[0, :], array([1.5, 2., 3.5])))
-        assert(allclose(ts[1, :], array([4.0, 2.0, 1.0])))
+        qry = Query(inds).calc(data)
+        assert(allclose(qry.values[0, :], array([1.5, 2., 3.5])))
+        assert(allclose(qry.values[1, :], array([4.0, 2.0, 1.0])))
 
 
 class TestCrossCorr(TimeSeriesTestCase):

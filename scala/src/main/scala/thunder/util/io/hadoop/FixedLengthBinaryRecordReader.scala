@@ -1,14 +1,13 @@
 package thunder.util.io.hadoop
 
 import java.io.IOException
-
 import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.hadoop.io.{BytesWritable, LongWritable}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.hadoop.mapreduce.InputSplit
+import org.apache.hadoop.mapreduce.lib.input.FileSplit
 import org.apache.hadoop.mapreduce.RecordReader
 import org.apache.hadoop.mapreduce.TaskAttemptContext
-import org.apache.hadoop.mapreduce.lib.input.FileSplit
 
 /**
  *
@@ -18,7 +17,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileSplit
  *
  * Each call to nextKeyValue() updates the LongWritable KEY and BytesWritable VALUE.
  *
- * KEY = byte position in the file the record started at (Long)
+ * KEY = record index (Long)
  * VALUE = the record itself (BytesWritable)
  *
  */

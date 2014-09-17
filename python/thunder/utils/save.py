@@ -4,14 +4,16 @@ Utilities for saving data
 
 import os
 from scipy.io import savemat
+from numpy import std
 from math import isnan
 from numpy import array, squeeze, sum, shape, reshape, transpose, maximum, minimum, float16, uint8, savetxt, size, arange
-from PIL import Image
+from matplotlib.pyplot import imsave
+from matplotlib import cm
 from thunder.utils.load import getdims, subtoind, isrdd, Dimensions
 
 
-def arraytoim(mat, filename, format="tif"):
-    """Write a numpy array to a png image. If mat is 3D,
+def arraytoim(mat, filename, format="png"):
+    """Write a 2D numpy array to a grayscale image. If mat is 3D,
     will separately write each image along the 3rd dimension
 
     Parameters
@@ -22,16 +24,16 @@ def arraytoim(mat, filename, format="tif"):
     filename : str
         Base filename for writing
 
-    format : str, optional, default = "tif"
-        Image format to write (see PIL for options)
+    format : str, optional, default = "png"
+        Image format to write (see matplotlib's imsave for options)
     """
     dims = shape(mat)
     if len(dims) > 2:
         for z in range(0, dims[2]):
             cdata = mat[:, :, z]
-            Image.fromarray(cdata).save(filename+"-"+str(z)+"."+format)
+            imsave(filename+"-"+str(z)+"."+format, cdata, cmap=cm.gray)
     elif len(dims) == 2:
-        Image.fromarray(mat).save(filename+"."+format)
+        imsave(filename+"."+format, mat, cmap=cm.gray)
     else:
         raise NotImplementedError('array must be 2 or 3 dimensions for image writing')
 
@@ -59,7 +61,34 @@ def rescale(data):
     return data
 
 
-def pack(data, ind=None, dims=None, sorting=False, axes=None):
+def subset(data, nsamples=100, thresh=None):
+    """Extract subset of points from an RDD into a local array,
+    filtering on the standard deviation
+
+    Parameters
+    ----------
+    data : RDD of (tuple, array) pairs
+        The data to get a subset from
+
+    nsamples : int, optional, default = 100
+        The number of data points to sample
+
+    thresh : float, optional, default = None
+        A threshold on standard deviation to use when picking points
+
+    Returns
+    -------
+    result : array
+        A local numpy array with the subset of points
+    """
+    if thresh is not None:
+        result = array(data.values().filter(lambda x: std(x) > thresh).takeSample(False, nsamples))
+    else:
+        result = array(data.values().takeSample(False, nsamples))
+    return result
+
+
+def pack(data, ind=None, dims=None, sorting=False, axis=None):
     """Pack an RDD into a dense local array, with options for
     sorting, reshaping, and projecting based on keys
 
@@ -77,7 +106,7 @@ def pack(data, ind=None, dims=None, sorting=False, axes=None):
     sorting : Boolean, optional, default = False
         Whether to sort the RDD before packing
 
-    axes : int, optional, default = None
+    axis : int, optional, default = None
         Which axis to do maximum projection along
 
     Returns
@@ -90,11 +119,13 @@ def pack(data, ind=None, dims=None, sorting=False, axes=None):
     if dims is None:
         dims = getdims(data)
 
-    if axes is not None:
+    if axis is not None:
         nkeys = len(data.first()[0])
-        data = data.map(lambda (k, v): (tuple(array(k)[arange(0, nkeys) != axes]), v)).reduceByKey(maximum)
-        dims.min = list(array(dims.min)[arange(0, nkeys) != axes])
-        dims.max = list(array(dims.max)[arange(0, nkeys) != axes])
+        if axis > nkeys - 1:
+            raise IndexError('only %g keys, cannot compute maximum along axis %g' % (nkeys, axis))
+        data = data.map(lambda (k, v): (tuple(array(k)[arange(0, nkeys) != axis]), v)).reduceByKey(maximum)
+        dims.min = list(array(dims.min)[arange(0, nkeys) != axis])
+        dims.max = list(array(dims.max)[arange(0, nkeys) != axis])
         sorting = True  # will always need to sort because reduceByKey changes order
 
     if ind is None:
@@ -109,7 +140,17 @@ def pack(data, ind=None, dims=None, sorting=False, axes=None):
         keys = data.map(lambda (k, _): int(k)).collect()
         result = array([v for (k, v) in sorted(zip(keys, result), key=lambda (k, v): k)])
 
-    return squeeze(transpose(reshape(result, ((nout,) + dims.count())[::-1])))
+    # reshape into a dense array of shape (b, x, y, z)  or (b, x, y) or (b, x)
+    # where b is the number of outputs per record
+    out = transpose(reshape(result, ((nout,) + dims.count())[::-1]))
+
+    # flip xy for spatial data
+    if size(dims.count()) == 3:  # (b, x, y, z) -> (b, y, x, z)
+        out = out.transpose([0, 2, 1, 3])
+    if size(dims.count()) == 2:  # (b, x, y) -> (b, y, x)
+        out = out.transpose([0, 2, 1])
+
+    return squeeze(out)
 
 
 def save(data, outputdir, outputfile, outputformat, sorting=False, dimsmax=None, dimsmin=None):

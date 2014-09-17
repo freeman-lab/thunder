@@ -4,7 +4,7 @@ from datetime import datetime
 from numpy import arange, array, add, float16, random, outer, dot, zeros, real, transpose, diag, argsort, sqrt, inner
 from scipy.linalg import sqrtm, inv, orth, eig
 from scipy.io import savemat
-from thunder.io import load
+from thunder.utils import load
 from thunder.timeseries import Stats, Fourier, CrossCorr
 from thunder.regression import RegressionModel
 from thunder.factorization import SVD
@@ -25,7 +25,10 @@ class ThunderDataTest(object):
         return TESTS[testname](sc)
 
     def createinputdata(self, numrecords, numdims, numpartitions):
-        rdd = self.sc.parallelize(map(lambda x: (1, array([x])), arange(0, numrecords)), numpartitions)
+        def randvec(seed):
+            random.seed(seed)
+            return random.randn(int(numdims))
+        rdd = self.sc.parallelize(arange(0, numrecords), numpartitions).map(lambda i: (i, randvec(i)))
         self.rdd = rdd
 
     def loadinputdata(self, datafile, savefile=None):

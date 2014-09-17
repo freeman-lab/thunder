@@ -115,12 +115,16 @@ class RowMatrix(object):
     def times(self, other, method="reduce"):
         """
         Multiply a RowMatrix by another matrix, either another RowMatrix
-        or
+        or a local matrix
+        NOTE: If multiplying two RowMatrices, they must have the same
+        number of partitions and number of records per partition,
+        e.g. because one was created through a map of the other,
+        see zip
 
         Parameters
         ----------
         other : RowMatrix, scalar, or numpy array
-            Matrix to multiple with
+            Matrix to multiply with
 
         method : string, optional, default = "reduce"
             Method to use for summation
@@ -132,7 +136,7 @@ class RowMatrix(object):
                     "cannot multiply shapes ("+str(self.nrows)+","+str(self.ncols)+") and ("+str(other.nrows)+","+str(other.ncols)+")")
             else:
                 if method is "reduce":
-                    return self.rdd.join(other.rdd).map(lambda (k, v): v).mapPartitions(matrixsum_iterator_other).sum()
+                    return self.rdd.zip(other.rdd).map(lambda ((k1, x), (k2, y)): (x, y)).mapPartitions(matrixsum_iterator_other).sum()
                 if method is "accum":
                     global mat
                     mat = self.rdd.context.accumulator(zeros((self.ncols, other.ncols)), MatrixAccumulatorParam())
@@ -140,7 +144,7 @@ class RowMatrix(object):
                     def outersum(x):
                         global mat
                         mat += outer(x[0], x[1])
-                    self.rdd.join(other.rdd).map(lambda (k, v): v).foreach(outersum)
+                    self.rdd.zip(other.rdd).map(lambda ((k1, x), (k2, y)): (x, y)).foreach(outersum)
                     return mat.value
                 else:
                     raise Exception("method must be reduce or accum")
@@ -159,12 +163,16 @@ class RowMatrix(object):
 
     def elementwise(self, other, op):
         """
-        Apply an elementwise operation to a MatrixRDD
+        Apply an elementwise operation to two RowMatrices
+        or between a RowMatrix and a local array
+        NOTE: For two RowMatrices, must have the same partitions
+        and number of records per iteration (e.g. because
+        one was created through a map on the other, see zip)
 
         Parameters
         ----------
         other : RowMatrix, scalar, or numpy array
-            Matrix to multiple with
+            Matrix to combine with element-wise
 
         op : function
             Binary operator to use for elementwise operations, e.g. add, subtract
@@ -175,7 +183,7 @@ class RowMatrix(object):
                 raise Exception(
                     "cannot do elementwise op for shapes ("+self.nrows+","+self.ncols+") and ("+other.nrows+","+other.ncols+")")
             else:
-                return RowMatrix(self.rdd.join(other.rdd).mapValues(lambda (x, y): op(x, y)), self.nrows, self.ncols)
+                return RowMatrix(self.rdd.zip(other.rdd).map(lambda ((k1, x), (k2, y)): (k1, add(x, y))), self.nrows, self.ncols)
         else:
             if dtype is ndarray:
                 dims = shape(other)

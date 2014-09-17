@@ -1,6 +1,6 @@
 name := "Thunder"
 
-version := "0.1.0"
+version := "0.3.2"
 
 scalaVersion := "2.10.3"
 
@@ -8,11 +8,11 @@ ivyXML := <dependency org="org.eclipse.jetty.orbit" name="javax.servlet" rev="3.
 <artifact name="javax.servlet" type="orbit" ext="jar"/>
 </dependency>
 
-libraryDependencies += "org.apache.spark" %% "spark-core" % "1.0.0"
+libraryDependencies += "org.apache.spark" %% "spark-core" % "1.0.2"
 
-libraryDependencies += "org.apache.spark" %% "spark-streaming" % "1.0.0"
+libraryDependencies += "org.apache.spark" %% "spark-streaming" % "1.0.2"
 
-libraryDependencies += "org.apache.spark" % "spark-mllib_2.10" % "1.0.0"
+libraryDependencies += "org.apache.spark" % "spark-mllib_2.10" % "1.0.2"
 
 libraryDependencies += "org.scalatest" % "scalatest_2.10" % "2.0" % "test"
 

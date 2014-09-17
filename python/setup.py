@@ -13,13 +13,14 @@ setup(
   packages=['thunder',
   					'thunder.regression',
   					'thunder.factorization',
-  					'thunder.classification',
+  					'thunder.decoding',
   					'thunder.clustering',
   					'thunder.timeseries',
   					'thunder.utils',
-  					'thunder.viz'],
+  					'thunder.viz',
+            'thunder.lib'],
   scripts = ['bin/thunder', 'bin/thunder-submit', 'bin/thunder-ec2'],
-  package_data = {'thunder.utils': ['data/fish.txt', 'data/iris.txt']},
+  package_data = {'thunder.utils': ['data/fish.txt', 'data/iris.txt'], 'thunder.lib': ['thunder_2.10-' + str(thunder.__version__) + '.jar']},
   long_description=open('README.rst').read(),
   install_requires=open('requirements.txt').read().split()
 )

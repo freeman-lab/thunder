@@ -2,16 +2,13 @@
 Class and standalone app for Independent Component Analysis
 """
 
-import os
 import argparse
-import glob
 from numpy import random, sqrt, zeros, real, dot, outer, diag, transpose
 from scipy.linalg import sqrtm, inv, orth
-from thunder.utils import load
+from thunder.utils import ThunderContext
 from thunder.utils import save
 from thunder.factorization import SVD
 from thunder.utils.matrices import RowMatrix
-from pyspark import SparkContext
 
 
 class ICA(object):
@@ -133,7 +130,6 @@ class ICA(object):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="do independent components analysis")
-    parser.add_argument("master", type=str)
     parser.add_argument("datafile", type=str)
     parser.add_argument("outputdir", type=str)
     parser.add_argument("k", type=int)
@@ -141,18 +137,15 @@ if __name__ == "__main__":
     parser.add_argument("--svdmethod", choices=("direct", "em"), default="direct", required=False)
     parser.add_argument("--maxiter", type=float, default=100, required=False)
     parser.add_argument("--tol", type=float, default=0.000001, required=False)
-    parser.add_argument("--preprocess", choices=("raw", "dff", "dff-highpass", "sub"), default="raw", required=False)
     parser.add_argument("--seed", type=int, default=0, required=False)
+    parser.add_argument("--preprocess", choices=("raw", "dff", "sub", "dff-highpass", "dff-percentile"
+                        "dff-detrendnonlin", "dff-detrend-percentile"), default="raw", required=False)
 
     args = parser.parse_args()
     
-    sc = SparkContext(args.master, "ica")
+    tsc = ThunderContext.start(appName="ica")
 
-    if args.master != "local":
-        egg = glob.glob(os.path.join(os.environ['THUNDER_EGG'], "*.egg"))
-        sc.addPyFile(egg[0])
-    
-    data = load(sc, args.datafile, args.preprocess).cache()
+    data = tsc.loadText(args.datafile, args.preprocess).cache()
     result = ICA(args.k, args.c, args.svdmethod, args.maxiter, args.tol, args.seed).fit(data)
 
     outputdir = args.outputdir + "-ica"

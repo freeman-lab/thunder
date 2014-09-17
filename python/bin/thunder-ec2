@@ -9,7 +9,7 @@ if spark is None or spark == '':
     raise Exception('must assign the environemntal variable SPARK_HOME with the location of Spark')
 
 if os.getenv('PYTHONPATH') is None:
-	os.environ['PYTHONPATH'] = ""
+    os.environ['PYTHONPATH'] = ""
 
 os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HOME'] + "/ec2/"
 os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HOME'] + "/ec2/third_party/boto-2.4.1.zip/boto-2.4.1"

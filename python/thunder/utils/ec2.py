@@ -13,7 +13,7 @@ import subprocess
 from sys import stderr
 from optparse import OptionParser
 from spark_ec2 import ssh, launch_cluster, get_existing_cluster, wait_for_cluster, deploy_files, setup_spark_cluster, \
-    get_spark_ami, ssh_command, ssh_read, ssh_write
+    get_spark_ami, ssh_command, ssh_read, ssh_write, get_or_make_group
 
 
 def get_s3_keys():
@@ -32,34 +32,45 @@ def get_s3_keys():
 def install_thunder(master, opts):
     """ Install Thunder and dependencies on a Spark EC2 cluster"""
     print "Installing Thunder on the cluster..."
+    # download and build thunder
     ssh(master, opts, "rm -rf thunder && git clone https://github.com/freeman-lab/thunder.git")
     ssh(master, opts, "chmod u+x thunder/python/bin/build")
     ssh(master, opts, "thunder/python/bin/build")
-    ssh(master, opts, "source ~/.bash_profile && pip install mpld3")
+    # install pip
+    ssh(master, opts, "wget http://pypi.python.org/packages/source/p/pip/pip-1.1.tar.gz"
+                      "#md5=62a9f08dd5dc69d76734568a6c040508")
+    ssh(master, opts, "tar -xvf pip*.gz")
+    ssh(master, opts, "cd pip* && sudo python setup.py install")
+    # install libraries
+    ssh(master, opts, "source ~/.bash_profile && pip install mpld3 && pip install seaborn "
+                      "&& pip install jinja2 && pip install -U scikit-learn")
+    # install ipython 1.1
+    ssh(master, opts, "pip uninstall -y ipython")
+    ssh(master, opts, "git clone https://github.com/ipython/ipython.git")
+    ssh(master, opts, "cd ipython && git checkout tags/rel-1.1.0")
+    ssh(master, opts, "cd ipython && sudo python setup.py install")
+    # set environmental variables
     ssh(master, opts, "echo 'export SPARK_HOME=/root/spark' >> /root/.bash_profile")
     ssh(master, opts, "echo 'export PYTHONPATH=/root/thunder/python' >> /root/.bash_profile")
     ssh(master, opts, "echo 'export IPYTHON=1' >> /root/.bash_profile")
     ssh(master, opts, "echo 'export PATH=/root/thunder/python/bin:$PATH' >> /root/.bash_profile")
+    # customize spark configuration parameters
+    ssh(master, opts, "echo 'spark.akka.frameSize=10000' >> /root/spark/conf/spark-defaults.conf")
+    ssh(master, opts, "echo 'export SPARK_DRIVER_MEMORY=20g' >> /root/spark/conf/spark-env.sh")
+    # add AWS credentials to core-site.xml
+    configstring = "<property><name>fs.s3n.awsAccessKeyId</name><value>ACCESS</value></property><property>" \
+                   "<name>fs.s3n.awsSecretAccessKey</name><value>SECRET</value></property>"
+    access, secret = get_s3_keys()
+    filled = configstring.replace('ACCESS', access).replace('SECRET', secret)
+    ssh(master, opts, "sed -i'f' 's,.*</configuration>.*,"+filled+"&,' /root/ephemeral-hdfs/conf/core-site.xml")
+    # configure requester pays
+    ssh(master, opts, "touch /root/spark/conf/jets3t.properties")
+    ssh(master, opts, "echo 'httpclient.requester-pays-buckets-enabled = true' >> /root/spark/conf/jets3t.properties")
+    ssh(master, opts, "~/spark-ec2/copy-dir /root/spark/conf")
+
     print "\n\n"
     print "-------------------------------"
     print "Thunder successfully installed!"
-    print "-------------------------------"
-    print "\n"
-
-
-def load_data(master, opts):
-    """ 
-    Load an example data set into a Spark EC2 cluster
-    TODO: replace with URL once we've hosted public data
-    """
-    print "Transferring example data to the cluster..."
-    ssh(master, opts, "/root/ephemeral-hdfs/bin/stop-all.sh")
-    ssh(master, opts, "/root/ephemeral-hdfs/bin/start-all.sh")
-    time.sleep(10)
-    ssh(master, opts, "/root/ephemeral-hdfs/bin/hadoop distcp s3n://thunder.datasets/test/iris.txt hdfs:///data")
-    print "\n\n"
-    print "-------------------------------"
-    print "Example data successfully loaded!"
     print "-------------------------------"
     print "\n"
 
@@ -110,7 +121,7 @@ if __name__ == "__main__":
     parser.add_option("-i", "--identity-file", help="SSH private key file to use for logging into instances")
     parser.add_option("-r", "--region", default="us-east-1", help="EC2 region zone to launch instances "
                                                                   "in (default: us-east-1)")
-    parser.add_option("-t", "--instance-type", default="m1.large", help="Type of instance to launch (default: m1.large)."
+    parser.add_option("-t", "--instance-type", default="m3.2xlarge", help="Type of instance to launch (default: m3.2xlarge)."
                                                                         " WARNING: must be 64-bit; small instances "
                                                                         "won't work")
     parser.add_option("-u", "--user", default="root", help="User name for cluster (default: root)")
@@ -138,14 +149,14 @@ if __name__ == "__main__":
         if opts.zone == "":
             opts.zone = random.choice(conn.get_all_zones()).name
 
-        opts.ami = "ami-3ecd0c56"
+        opts.ami = get_spark_ami(opts) #"ami-3ecd0c56"
         opts.ebs_vol_size = 0
         opts.spot_price = None
         opts.master_instance_type = ""
         opts.wait = 160
         opts.hadoop_major_version = "1"
         opts.ganglia = True
-        opts.spark_version = "1.0.1"
+        opts.spark_version = "1.0.2"
         opts.swap = 1024
         opts.worker_instances = 1
         opts.master_opts = ""
@@ -181,10 +192,6 @@ if __name__ == "__main__":
         elif action == "install":
             install_thunder(master, opts)
 
-        # Load example data into the cluster
-        elif action == "loaddata":
-            load_data(master, opts)
-
         # Destroy the cluster
         elif action == "destroy":
             response = raw_input("Are you sure you want to destroy the cluster " + cluster_name +
@@ -198,5 +205,8 @@ if __name__ == "__main__":
             print "Terminating slaves..."
             for inst in slave_nodes:
                 inst.terminate()
+
+        else:
+            raise NotImplementedError("action: " + action + "not recognized")
 
 
