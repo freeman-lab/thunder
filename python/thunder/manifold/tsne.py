@@ -1,5 +1,6 @@
 from numpy import log, abs, zeros, inf, exp, array, random, ones, sign, mean, spacing, add
-from thunder.utils import Distance
+from thunder.utils import distances
+from thunder.utils.distances import Distance
 
 class TSNE(object):
 
