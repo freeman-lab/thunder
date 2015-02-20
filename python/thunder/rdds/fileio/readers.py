@@ -30,6 +30,8 @@ import os
 import urllib
 import urlparse
 
+from thunder.utils.common import AWSCredentials
+
 _haveBoto = False
 try:
     import boto
@@ -122,7 +124,9 @@ def _localRead(filePath, startOffset=None, size=-1):
 class LocalFSParallelReader(object):
     """Parallel reader backed by python's native file() objects.
     """
-    def __init__(self, sparkContext):
+    def __init__(self, sparkContext, **kwargs):
+        # kwargs allow AWS credentials to be passed into generic Readers w/o exceptions being raised
+        # in this case kwargs are just ignored
         self.sc = sparkContext
         self.lastNRecs = None
 
@@ -272,23 +276,27 @@ class _BotoS3Client(object):
         else:
             return results
 
-    def __init__(self):
+    def __init__(self, awsCredentialsOverride=None):
         """Initialization; validates that AWS keys are available as environment variables.
 
         Will let boto library look up credentials itself according to its own rules - e.g. first looking for
         AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, then going through several possible config files and finally
         looking for a ~/.aws/credentials .ini-formatted file. See boto docs:
         http://boto.readthedocs.org/en/latest/boto_config_tut.html
+
+        However, if an AWSCredentials object is provided, its `awsAccessKeyId` and `awsSecretAccessKey` attributes
+        will be used instead of those found by the standard boto credential lookup process.
         """
         if not _haveBoto:
             raise ValueError("The boto package does not appear to be available; boto is required for BotoS3Reader")
+        self.awsCredentialsOverride = awsCredentialsOverride
 
 
 class BotoS3ParallelReader(_BotoS3Client):
     """Parallel reader backed by boto AWS client library.
     """
-    def __init__(self, sparkContext):
-        super(BotoS3ParallelReader, self).__init__()
+    def __init__(self, sparkContext, awsCredentialsOverride=None):
+        super(BotoS3ParallelReader, self).__init__(awsCredentialsOverride=awsCredentialsOverride)
         self.sc = sparkContext
         self.lastNRecs = None
 
@@ -302,7 +310,8 @@ class BotoS3ParallelReader(_BotoS3Client):
             raise NotImplementedError("Recursive traversal of directories isn't yet implemented for S3 - sorry!")
         parse = _BotoS3Client.parseS3Query(dataPath)
 
-        conn = boto.connect_s3()
+
+        conn = boto.connect_s3(**AWSCredentials.getCredentialsAsDict(self.awsCredentialsOverride))
         bucket = conn.get_bucket(parse[0])
         keys = _BotoS3Client.retrieveKeys(bucket, parse[1], prefix=parse[2], postfix=parse[3])
         keyNameList = [key.name for key in keys]
@@ -326,8 +335,13 @@ class BotoS3ParallelReader(_BotoS3Client):
         if not keyNameList:
             raise FileNotFoundError("No S3 objects found for '%s'" % dataPath)
 
+        # try to prevent self from getting pulled into the closure
+        awsAccessKeyIdOverride_, awsSecretAccessKeyOverride_ = \
+            AWSCredentials.getCredentials(self.awsCredentialsOverride)
+
         def readSplitFromS3(kvIter):
-            conn = boto.connect_s3()
+            conn = boto.connect_s3(aws_access_key_id=awsAccessKeyIdOverride_,
+                                   aws_secret_access_key=awsSecretAccessKeyOverride_)
             bucket = conn.get_bucket(bucketName)
             for kv in kvIter:
                 idx, keyName = kv
@@ -343,6 +357,10 @@ class BotoS3ParallelReader(_BotoS3Client):
 class LocalFSFileReader(object):
     """File reader backed by python's native file() objects.
     """
+    def __init__(self, **kwargs):
+        # do nothing; allows AWS access keys to be passed in to a generic Reader instance w/o blowing up
+        pass
+
     def __listRecursive(self, dataPath):
         if os.path.isdir(dataPath):
             dirname = dataPath
@@ -416,7 +434,7 @@ class BotoS3FileReader(_BotoS3Client):
     """
     def __getMatchingKeys(self, dataPath, filename=None):
         parse = _BotoS3Client.parseS3Query(dataPath)
-        conn = boto.connect_s3()
+        conn = boto.connect_s3(**AWSCredentials.getCredentialsAsDict(self.awsCredentialsOverride))
         bucketName = parse[0]
         keyName = parse[1]
         bucket = conn.get_bucket(bucketName)

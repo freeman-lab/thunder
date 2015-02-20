@@ -49,8 +49,8 @@ class Blocks(Data):
     """
     _metadata = Data._metadata + ['_dims', '_nimages']
 
-    def __init__(self, rdd, dims=None, nimages=None, dtype=None):
-        super(Blocks, self).__init__(rdd, dtype=dtype)
+    def __init__(self, rdd, dims=None, nimages=None, dtype=None, awsCredentials=None):
+        super(Blocks, self).__init__(rdd, dtype=dtype, awsCredentials=awsCredentials)
         self._dims = dims
         self._nimages = nimages
 
@@ -113,16 +113,17 @@ class Blocks(Data):
 
         if not overwrite:
             from thunder.utils.common import raiseErrorIfPathExists
-            raiseErrorIfPathExists(outputDirPath)
+            raiseErrorIfPathExists(outputDirPath, awsCredentialsOverride=self._awsCredentials)
             overwrite = True  # prevent additional downstream checks for this path
 
-        writer = getParallelWriterForPath(outputDirPath)(outputDirPath, overwrite=overwrite)
+        writer = getParallelWriterForPath(outputDirPath)(outputDirPath, overwrite=overwrite,
+                                                         awsCredentialsOverride=self._awsCredentials)
 
         binseriesRdd = self.toBinarySeries()
 
         binseriesRdd.foreach(writer.writerFcn)
         writeSeriesConfig(outputDirPath, len(self.dims), self.nimages, keyType='int16', valueType=self.dtype,
-                          overwrite=overwrite)
+                          overwrite=overwrite, awsCredentialsOverride=self._awsCredentials)
 
 
 class SimpleBlocks(Blocks):
@@ -210,14 +211,16 @@ class SimpleBlocks(Blocks):
         seriesRdd = self.rdd.flatMap(lambda kv: SimpleBlocks._toSeriesIter(kv[0], kv[1]))
 
         idx = arange(self._nimages) if self._nimages else None
-        return Series(seriesRdd, dims=self.dims, index=idx, dtype=self.dtype).astype(newDType, casting=casting)
+        return Series(seriesRdd, dims=self.dims, index=idx, dtype=self.dtype, awsCredentials=self._awsCredentials)\
+            .astype(newDType, casting=casting)
 
     def toImages(self):
         from thunder.rdds.images import Images
         timeRdd = self.rdd.flatMap(lambda kv: SimpleBlocks._toTimeSlicedBlocksIter(kv[0], kv[1]))
         timeSortedRdd = timeRdd.groupBy(lambda (k, _): k.temporalKey).sortByKey()
         imagesRdd = timeSortedRdd.map(SimpleBlocks._combineTimeSlicedBlocks)
-        return Images(imagesRdd, dims=self._dims, nrecords=self._nimages, dtype=self._dtype)
+        return Images(imagesRdd, dims=self._dims, nrecords=self._nimages, dtype=self._dtype,
+                      awsCredentials=self._awsCredentials)
 
     @staticmethod
     def getBinarySeriesNameForKey(blockKey):

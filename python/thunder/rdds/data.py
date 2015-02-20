@@ -17,12 +17,13 @@ class Data(object):
         directly exposed by the Data object can be accessed via `obj.rdd`.
     """
 
-    _metadata = ['_nrecords', '_dtype']
+    _metadata = ['_nrecords', '_dtype', '_awsCredentials']
 
-    def __init__(self, rdd, nrecords=None, dtype=None):
+    def __init__(self, rdd, nrecords=None, dtype=None, awsCredentials=None):
         self.rdd = rdd
         self._nrecords = nrecords
         self._dtype = dtype
+        self._awsCredentials = awsCredentials
 
     def __repr__(self):
         # start with class name
@@ -58,6 +59,13 @@ class Data(object):
         if not self._dtype:
             self.populateParamsFromFirstRecord()
         return self._dtype
+
+    @property
+    def awsCredentials(self):
+        if self._awsCredentials is None:
+            from thunder.utils.common import AWSCredentials
+            return AWSCredentials()  # return instance with None, None as public and private keys
+        return self._awsCredentials
 
     def populateParamsFromFirstRecord(self):
         """

@@ -323,7 +323,7 @@ class TestSeriesBinaryLoader(PySparkTestCaseWithOutputDir):
 class TestSeriesBinaryWriteFromStack(PySparkTestCaseWithOutputDir):
 
     def _run_roundtrip_tst(self, testCount, arrays, blockSize):
-        print "Running TestSeriesBinaryWriteFromStack roundtrip test #%d" % testCount
+        #  print "Running TestSeriesBinaryWriteFromStack roundtrip test #%d" % testCount
         inSubdir = os.path.join(self.outputdir, 'input%d' % testCount)
         os.mkdir(inSubdir)
 

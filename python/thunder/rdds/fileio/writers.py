@@ -28,6 +28,7 @@ import urllib
 import urlparse
 
 from thunder.rdds.fileio.readers import _BotoS3Client, getByScheme
+from thunder.utils.common import AWSCredentials
 
 
 _haveBoto = False
@@ -39,7 +40,7 @@ except ImportError:
 
 
 class LocalFSParallelWriter(object):
-    def __init__(self, dataPath, overwrite=False):
+    def __init__(self, dataPath, overwrite=False, **kwargs):
         self._dataPath = dataPath
         # thanks stack overflow:
         # http://stackoverflow.com/questions/5977576/is-there-a-convenient-way-to-map-a-file-uri-to-os-path
@@ -68,9 +69,8 @@ class LocalFSParallelWriter(object):
 
 
 class _BotoS3Writer(_BotoS3Client):
-    def __init__(self):
-        super(_BotoS3Writer, self).__init__()
-
+    def __init__(self, awsCredentialsOverride=None):
+        super(_BotoS3Writer, self).__init__(awsCredentialsOverride=awsCredentialsOverride)
         self._contextActive = False
         self._conn = None
         self._keyName = None
@@ -81,7 +81,7 @@ class _BotoS3Writer(_BotoS3Client):
         Set up a boto s3 connection.
 
         """
-        conn = boto.connect_s3()
+        conn = boto.connect_s3(**AWSCredentials.getCredentialsAsDict(self.awsCredentialsOverride))
         parsed = _BotoS3Client.parseS3Query(dataPath)
         bucketName = parsed[0]
         keyName = parsed[1]
@@ -108,8 +108,8 @@ class _BotoS3Writer(_BotoS3Client):
 
 
 class BotoS3ParallelWriter(_BotoS3Writer):
-    def __init__(self, dataPath, overwrite=False):
-        super(BotoS3ParallelWriter, self).__init__()
+    def __init__(self, dataPath, overwrite=False, awsCredentialsOverride=None):
+        super(BotoS3ParallelWriter, self).__init__(awsCredentialsOverride=awsCredentialsOverride)
         self._dataPath = dataPath
         self._overwrite = overwrite
 
@@ -124,7 +124,7 @@ class BotoS3ParallelWriter(_BotoS3Writer):
 
 
 class LocalFSFileWriter(object):
-    def __init__(self, dataPath, filename, overwrite=False):
+    def __init__(self, dataPath, filename, overwrite=False, **kwargs):
         self._dataPath = dataPath
         self._filename = filename
         self._absPath = os.path.join(urllib.url2pathname(urlparse.urlparse(dataPath).path), filename)
@@ -148,8 +148,8 @@ class LocalFSFileWriter(object):
 
 
 class BotoS3FileWriter(_BotoS3Writer):
-    def __init__(self, dataPath, filename, overwrite=False):
-        super(BotoS3FileWriter, self).__init__()
+    def __init__(self, dataPath, filename, overwrite=False, awsCredentialsOverride=None):
+        super(BotoS3FileWriter, self).__init__(awsCredentialsOverride=awsCredentialsOverride)
         self._dataPath = dataPath
         self._filename = filename
         self._overwrite = overwrite
@@ -164,7 +164,7 @@ class BotoS3FileWriter(_BotoS3Writer):
 
 
 class LocalFSCollectedFileWriter(object):
-    def __init__(self, dataPath, overwrite=False):
+    def __init__(self, dataPath, overwrite=False, **kwargs):
         self._dataPath = dataPath
         self._absPath = urllib.url2pathname(urlparse.urlparse(dataPath).path)
         self._overwrite = overwrite
@@ -194,8 +194,8 @@ class LocalFSCollectedFileWriter(object):
 
 class BotoS3CollectedFileWriter(_BotoS3Writer):
     # todo: needs to check before writing if overwrite is True
-    def __init__(self, dataPath, overwrite=False):
-        super(BotoS3CollectedFileWriter, self).__init__()
+    def __init__(self, dataPath, overwrite=False, awsCredentialsOverride=None):
+        super(BotoS3CollectedFileWriter, self).__init__(awsCredentialsOverride=awsCredentialsOverride)
         self._dataPath = dataPath
         self._overwrite = overwrite
 

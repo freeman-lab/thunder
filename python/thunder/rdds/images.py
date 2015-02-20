@@ -15,8 +15,8 @@ class Images(Data):
 
     _metadata = Data._metadata + ['_dims']
 
-    def __init__(self, rdd, dims=None, nrecords=None, dtype=None):
-        super(Images, self).__init__(rdd, nrecords=nrecords, dtype=dtype)
+    def __init__(self, rdd, dims=None, nrecords=None, dtype=None, awsCredentials=None):
+        super(Images, self).__init__(rdd, nrecords=nrecords, dtype=dtype, awsCredentials=awsCredentials)
         if dims and not isinstance(dims, Dimensions):
             try:
                 dims = Dimensions.fromTuple(dims)
@@ -103,7 +103,8 @@ class Images(Data):
         groupedvals = vals.groupBy(lambda (k, _): k.spatialKey).sortBy(lambda (k, _): tuple(k[::-1]))
         # groupedvals is now rdd of (z, y, x spatial key, [(partitioning key, numpy array)...]
         blockedvals = groupedvals.map(blockingStrategy.combiningFunction)
-        return returntype(blockedvals, dims=self.dims, nimages=self.nrecords, dtype=self.dtype)
+        return returntype(blockedvals, dims=self.dims, nimages=self.nrecords, dtype=self.dtype,
+                          awsCredentials=self._awsCredentials)
 
     def toSeries(self, blockSizeSpec="150M", units="pixels"):
         """Converts this Images object to a Series object.
@@ -165,7 +166,7 @@ class Images(Data):
         """
         if not overwrite:
             from thunder.utils.common import raiseErrorIfPathExists
-            raiseErrorIfPathExists(outputDirPath)
+            raiseErrorIfPathExists(outputDirPath, awsCredentialsOverride=self._awsCredentials)
             overwrite = True  # prevent additional downstream checks for this path
 
         self.toBlocks(blockSizeSpec, units=units).saveAsBinarySeries(outputDirPath, overwrite=overwrite)
@@ -215,10 +216,12 @@ class Images(Data):
         bufRdd = self.rdd.map(toFilenameAndPngBuf)
 
         if collectToDriver:
-            writer = getCollectedFileWriterForPath(outputDirPath)(outputDirPath, overwrite=overwrite)
+            writer = getCollectedFileWriterForPath(outputDirPath)(outputDirPath, overwrite=overwrite,
+                                                                  awsCredentialsOverride=self._awsCredentials)
             writer.writeCollectedFiles(bufRdd.collect())
         else:
-            writer = getParallelWriterForPath(outputDirPath)(outputDirPath, overwrite=overwrite)
+            writer = getParallelWriterForPath(outputDirPath)(outputDirPath, overwrite=overwrite,
+                                                             awsCredentialsOverride=self._awsCredentials)
             bufRdd.foreach(writer.writerFcn)
 
     def maxProjection(self, axis=2):

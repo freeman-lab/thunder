@@ -4,7 +4,6 @@ Class with utilities for representing and working with matrices
 from numpy import dot, outer, shape, ndarray, add, subtract, multiply, zeros, divide, arange
 
 from thunder.rdds.series import Series
-from thunder.rdds.data import Data
 
 
 # TODO: right divide and left divide
@@ -40,7 +39,8 @@ class RowMatrix(Series):
 
     _metadata = Series._metadata + ['_ncols', '_nrows']
 
-    def __init__(self, rdd, index=None, dims=None, dtype=None, nrows=None, ncols=None, nrecords=None):
+    def __init__(self, rdd, index=None, dims=None, dtype=None, nrows=None, ncols=None, nrecords=None,
+                 awsCredentials=None):
         if nrows is not None and nrecords is not None:
             if nrows != nrecords:
                 raise ValueError("nrows and nrecords must be consistent, got %d and %d" % (nrows, nrecords))
@@ -51,7 +51,8 @@ class RowMatrix(Series):
                                      (ncols, len(index)))
         elif ncols is not None:
             index = arange(ncols)
-        super(RowMatrix, self).__init__(rdd, nrecords=nrecs, dtype=dtype, dims=dims, index=index)
+        super(RowMatrix, self).__init__(rdd, nrecords=nrecs, dtype=dtype, dims=dims, index=index,
+                                        awsCredentials=awsCredentials)
 
     @property
     def nrows(self):

@@ -202,6 +202,7 @@ class NMF(object):
 
             # report results
             self.h = h
+            # TODO: need to propagate metadata through to this new Series object
             self.w = Series(w)
 
         else:

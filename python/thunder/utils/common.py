@@ -177,7 +177,7 @@ def parseMemoryString(memStr):
         return int(memStr)
 
 
-def raiseErrorIfPathExists(path):
+def raiseErrorIfPathExists(path, awsCredentialsOverride=None):
     """Raises a ValueError if the passed path string is found to already exist.
 
     The ValueError message will suggest calling with overwrite=True; this function is expected to be
@@ -185,8 +185,34 @@ def raiseErrorIfPathExists(path):
     """
     # check that specified output path does not already exist
     from thunder.rdds.fileio.readers import getFileReaderForPath
-    reader = getFileReaderForPath(path)()
+    reader = getFileReaderForPath(path)(awsCredentialsOverride=awsCredentialsOverride)
     existing = reader.list(path, includeDirectories=True)
     if existing:
         raise ValueError("Path %s appears to already exist. Specify a new directory, or call " % path +
                          "with overwrite=True to overwrite.")
+
+
+class AWSCredentials(object):
+    __slots__ = ('awsAccessKeyId', 'awsSecretAccessKey')
+
+    def __init__(self, awsAccessKeyId=None, awsSecretAccessKey=None):
+        self.awsAccessKeyId = awsAccessKeyId
+        self.awsSecretAccessKey = awsSecretAccessKey
+
+    def __repr__(self):
+        def obfuscate(s):
+            return "None" if s is None else "<%d-char string>" % len(s)
+        return "AWSCredentials(accessKeyId: %s, secretAccessKey: %s)" % \
+               (obfuscate(self.awsAccessKeyId), obfuscate(self.awsSecretAccessKey))
+
+    @staticmethod
+    def getCredentials(awsCredentials):
+        if awsCredentials:
+            return awsCredentials.awsAccessKeyId, awsCredentials.awsSecretAccessKey
+        else:
+            return None, None
+
+    @staticmethod
+    def getCredentialsAsDict(awsCredentials):
+        access, secret = AWSCredentials.getCredentials(awsCredentials)
+        return {"aws_access_key_id": access, "aws_secret_access_key": secret}
