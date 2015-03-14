@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+cd /root
+
+echo "-----------------------------------------------------------------"
+echo "Upgrading python locally"
+echo "-----------------------------------------------------------------"
+thunder/python/bin/upgrade-python-local.sh
+
+echo "-----------------------------------------------------------------"
+echo "Upgrading python locally"
+echo "-----------------------------------------------------------------"
+yum install pssh -y
+
+spark-ec2/copy-dir thunder/python/bin/upgrade-python-local.sh
+
+pssh -h $SPARK_HOME/conf/slaves -t 900 /root/thunder/python/bin/upgrade-python-local.sh
