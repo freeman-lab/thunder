@@ -94,14 +94,17 @@ class ThunderContext():
                                      keyType=keyType, valueType=valueType)
         return data
 
-    def loadImages(self, dataPath, dims=None, inputFormat='stack', ext=None, dtype='int16',
+    def loadImages(self, dataPath, dims=None, inputFormat='stack', ext=None, dtype=None,
                    startIdx=None, stopIdx=None, recursive=False, nplanes=None, npartitions=None,
-                   renumber=False):
+                   renumber=False, confFilename='conf.json'):
         """
         Loads an Images object from data stored as a binary image stack, tif, or png files.
 
         Supports single files or multiple files, stored on a local file system, a networked file sytem
         (mounted and available on all nodes), or Amazon S3. HDFS is not currently supported for image file data.
+
+        Parameters that are not explicitly passed as keyword arguments may be read out from an optional configuration
+        JSON file located in the same directory as the data files.
 
         Parameters
         ----------
@@ -111,16 +114,19 @@ class ThunderContext():
             of valid dataPaths include 'a/local/relative/directory/*.stack", "s3n:///my-s3-bucket/data/mydatafile.tif",
             "/mnt/my/absolute/data/directory/", or "file:///mnt/another/data/directory/".
 
-        dims: tuple of positive int, optional (but required if inputFormat is 'stack')
-            Dimensions of input image data, similar to a numpy 'shape' parameter, for instance (1024, 1024, 48). Binary
-            stack data will be interpreted as coming from a multidimensional array of the specified dimensions. Stack
-            data should be stored in row-major order (Fortran or Matlab convention) rather than column-major order (C
-            or python/numpy convention), where the first dimension corresponds to that which is changing most rapidly
+        dims: tuple of positive int, optional
+            Dimensions of input image data, for instance (1024, 1024, 48). Binary stack data will be interpreted as
+            coming from a multidimensional array of the specified dimensions.
+
+            Dimensions are required for 'stack' inputFormat, either as an explicit keyword argument or in a
+            configuration JSON file. If inputFormat is 'png' or 'tif', the dims parameter (if any) will be ignored;
+            data dimensions will instead be read out from the image file headers.
+
+            Stack data should be stored in row-major order (Fortran / Matlab convention) rather than column-major order
+            (C or python/numpy convention), where the first dimension corresponds to that which is changing most rapidly
             on disk. So for instance given dims of (x, y, z), the coordinates of the data in a binary stack file
             should be ordered as [(x0, y0, z0), (x1, y0, zo), ..., (xN, y0, z0), (x0, y1, z0), (x1, y1, z0), ...,
             (xN, yM, z0), (x0, y0, z1), ..., (xN, yM, zP)].
-            If inputFormat is 'png' or 'tif', the dims parameter (if any) will be ignored; data dimensions
-            will instead be read out from the image file headers.
 
         inputFormat: {'stack', 'png', 'tif'}. optional, default 'stack'
             Expected format of the input data. 'stack' indicates flat files of raw binary data. 'png' or 'tif' indicate
@@ -132,10 +138,11 @@ class ThunderContext():
             Extension required on data files to be loaded. By default will be "stack" if inputFormat=="stack", "tif" for
             inputFormat=='tif', and 'png' for inputFormat="png".
 
-        dtype: string or numpy dtype. optional, default 'int16'
+        dtype: string dtype specifier or numpy dtype object, optional.
             Data type of the image files to be loaded, specified as a numpy "dtype" string. If inputFormat is
             'tif' or 'png', the dtype parameter (if any) will be ignored; data type will instead be read out from the
-            tif headers.
+            image file headers. If inputFormat is 'stack', then dtype will be assumed to be 'int16' if it is not specified
+            either as a keyword parameter or in a configuration json file.
 
         startIdx: nonnegative int, optional
             startIdx and stopIdx are convenience parameters to allow only a subset of input files to be read in. These
@@ -172,6 +179,13 @@ class ThunderContext():
             all images are loaded. This should only be necessary at load time when different files contain
             different number of records. See Images.renumber().
 
+        confFilename: string, optional, default 'conf.json'
+            Path to optional JSON file with configuration options such as 'dims', 'dtype', 'ext', 'recursive', and
+            'nplanes'. confFilename may be an absolute or a relative path; relative paths will be interpreted
+            relative to the base directory given in 'dataPath'. If a configuration file is found, then parameters given
+            in this file will be used unless they are overridden by explicit keyword arguments. Not all parameters
+            are used by all inputFormats; see documentation for individual parameters above.
+
         Returns
         -------
         data: thunder.rdds.Images
@@ -183,20 +197,18 @@ class ThunderContext():
         from thunder.rdds.fileio.imagesloader import ImagesLoader
         loader = ImagesLoader(self._sc)
 
-        if not ext:
-            ext = DEFAULT_EXTENSIONS.get(inputFormat.lower(), None)
-
         if inputFormat.lower() == 'stack':
-            data = loader.fromStack(dataPath, dims, dtype=dtype, ext=ext, startIdx=startIdx, stopIdx=stopIdx,
-                                    recursive=recursive, nplanes=nplanes, npartitions=npartitions)
+            data = loader.fromStack(dataPath, dims=dims, dtype=dtype, ext=ext, startIdx=startIdx, stopIdx=stopIdx,
+                                    recursive=recursive, nplanes=nplanes, npartitions=npartitions,
+                                    confFilename=confFilename)
         elif inputFormat.lower().startswith('tif'):
             data = loader.fromTif(dataPath, ext=ext, startIdx=startIdx, stopIdx=stopIdx, recursive=recursive,
-                                  nplanes=nplanes, npartitions=npartitions)
+                                  nplanes=nplanes, npartitions=npartitions, confFilename=confFilename)
         else:
             if nplanes:
                 raise NotImplementedError("nplanes argument is not supported for png files")
             data = loader.fromPng(dataPath, ext=ext, startIdx=startIdx, stopIdx=stopIdx,
-                                  recursive=recursive, npartitions=npartitions)
+                                  recursive=recursive, npartitions=npartitions, confFilename=confFilename)
 
         if not renumber:
             return data
@@ -206,9 +218,13 @@ class ThunderContext():
     def loadImagesAsSeries(self, dataPath, dims=None, inputFormat='stack', ext=None, dtype='int16',
                            blockSize="150M", blockSizeUnits="pixels", startIdx=None, stopIdx=None,
                            shuffle=True, recursive=False, nplanes=None, npartitions=None,
-                           renumber=False):
+                           renumber=False, confFilename='conf.json'):
         """
         Load Images data as Series data.
+
+        Image parameters that are not explicitly passed as keyword arguments may be read out from an optional
+        configuration JSON file located in the same directory as the data files (when shuffle=True). Parameters
+        that may be passed in a configuration file include 'dims', 'ext', 'dtype', 'recursive', and 'nplanes'.
 
         Parameters
         ----------
@@ -222,15 +238,15 @@ class ThunderContext():
             Dimensions of input image data, for instance (1024, 1024, 48). Binary stack data will be interpreted as
             coming from a multidimensional array of the specified dimensions.
 
-            The first dimension of the passed dims tuple should be the one that is changing most rapidly
+            Dimensions are required for 'stack' inputFormat, either as an explicit keyword argument or in a
+            configuration JSON file. If inputFormat is 'tif', the dims parameter (if any) will be ignored;
+            data dimensions will instead be read out from the image file headers.
+
+            Stack data should be stored in row-major order (Fortran / Matlab convention) rather than column-major order
+            (C or python/numpy convention), where the first dimension corresponds to that which is changing most rapidly
             on disk. So for instance given dims of (x, y, z), the coordinates of the data in a binary stack file
-            should be ordered as [(x0, y0, z0), (x1, y0, z0), ..., (xN, y0, z0), (x0, y1, z0), (x1, y1, z0), ...,
-            (xN, yM, z0), (x0, y0, z1), ..., (xN, yM, zP)]. This is the opposite convention from that used by numpy,
-            which by default has the fastest-changing dimension listed last (column-major convention). Thus, if loading
-            a numpy array `ary`, where `ary.shape == (z, y, x)`, written to disk by `ary.tofile("myarray.stack")`, the
-            corresponding dims parameter should be (x, y, z).
-            If inputFormat is 'tif', the dims parameter (if any) will be ignored; data dimensions will instead
-            be read out from the tif file headers.
+            should be ordered as [(x0, y0, z0), (x1, y0, zo), ..., (xN, y0, z0), (x0, y1, z0), (x1, y1, z0), ...,
+            (xN, yM, z0), (x0, y0, z1), ..., (xN, yM, zP)].
 
         inputFormat: {'stack', 'tif'}. optional, default 'stack'
             Expected format of the input data. 'stack' indicates flat files of raw binary data, while 'tif' indicates
@@ -242,10 +258,11 @@ class ThunderContext():
             Extension required on data files to be loaded. By default will be "stack" if inputFormat=="stack", "tif" for
             inputFormat=='tif'.
 
-        dtype: string or numpy dtype. optional, default 'int16'
+        dtype: string dtype specifier or numpy dtype object, optional.
             Data type of the image files to be loaded, specified as a numpy "dtype" string. If inputFormat is
             'tif', the dtype parameter (if any) will be ignored; data type will instead be read out from the
-            tif headers.
+            image file headers. If inputFormat is 'stack', then dtype will be assumed to be 'int16' if it is not specified
+            either as a keyword parameter or in a configuration json file.
 
         blockSize: string formatted as e.g. "64M", "512k", "2G", or positive int. optional, default "150M"
             Requested size of individual output files in bytes (or kilobytes, megabytes, gigabytes). If shuffle=True,
@@ -299,6 +316,14 @@ class ThunderContext():
             different number of records. renumber is only supported for shuffle=True (the default). See
             Images.renumber().
 
+        confFilename: string, optional, default 'conf.json'
+            Path to optional JSON file with configuration options such as 'dims', 'dtype', 'ext', 'recursive', and
+            'nplanes'. confFilename may be an absolute or a relative path; relative paths will be interpreted
+            relative to the base directory given in 'dataPath'. If a configuration file is found, then parameters given
+            in this file will be used unless they are overridden by explicit keyword arguments. Not all parameters
+            are used by all inputFormats; see documentation for individual parameters above. JSON configuration files
+            are only supported for shuffle=True (the default).
+
         Returns
         -------
         data: thunder.rdds.Series
@@ -310,23 +335,18 @@ class ThunderContext():
         """
         checkParams(inputFormat, ['stack', 'tif', 'tif-stack'])
 
-        if inputFormat.lower() == 'stack' and not dims:
-            raise ValueError("Dimensions ('dims' parameter) must be specified if loading from binary image stack" +
-                             " ('stack' value for 'inputFormat' parameter)")
-
-        if not ext:
-            ext = DEFAULT_EXTENSIONS.get(inputFormat.lower(), None)
-
         if shuffle:
             from thunder.rdds.fileio.imagesloader import ImagesLoader
             loader = ImagesLoader(self._sc)
             if inputFormat.lower() == 'stack':
                 images = loader.fromStack(dataPath, dims, dtype=dtype, ext=ext, startIdx=startIdx, stopIdx=stopIdx,
-                                          recursive=recursive, nplanes=nplanes, npartitions=npartitions)
+                                          recursive=recursive, nplanes=nplanes, npartitions=npartitions,
+                                          confFilename=confFilename)
             else:
                 # tif / tif stack
                 images = loader.fromTif(dataPath, ext=ext, startIdx=startIdx, stopIdx=stopIdx,
-                                        recursive=recursive, nplanes=nplanes, npartitions=npartitions)
+                                        recursive=recursive, nplanes=nplanes, npartitions=npartitions,
+                                        confFilename=confFilename)
             if renumber:
                 images = images.renumber()
             return images.toBlocks(blockSize, units=blockSizeUnits).toSeries()
@@ -339,6 +359,11 @@ class ThunderContext():
                 raise NotImplementedError("npartitions is not supported with shuffle=False")
             if renumber:
                 raise NotImplementedError("renumber is not supported with shuffle=False")
+            if confFilename != "conf.json":
+                raise NotImplementedError("JSON configuration files are not supported with shuffle=False")
+
+            if not ext:
+                ext = DEFAULT_EXTENSIONS.get(inputFormat.lower(), None)
 
             loader = SeriesLoader(self._sc)
             if inputFormat.lower() == 'stack':
@@ -350,9 +375,9 @@ class ThunderContext():
                                       startIdx=startIdx, stopIdx=stopIdx, recursive=recursive)
 
     def convertImagesToSeries(self, dataPath, outputDirPath, dims=None, inputFormat='stack', ext=None,
-                              dtype='int16', blockSize="150M", blockSizeUnits="pixels", startIdx=None, stopIdx=None,
+                              dtype=None, blockSize="150M", blockSizeUnits="pixels", startIdx=None, stopIdx=None,
                               shuffle=True, overwrite=False, recursive=False, nplanes=None, npartitions=None,
-                              renumber=False):
+                              renumber=False, confFilename='conf.json'):
         """
         Write out Images data as Series data, saved in a flat binary format.
 
@@ -360,6 +385,10 @@ class ThunderContext():
         object that results will be equivalent to that which would be generated by loadImagesAsSeries(). It is expected
         that loading Series data directly from the series flat binary format, using loadSeries(), will be faster than
         converting image data to a Series object through loadImagesAsSeries().
+
+        Image parameters that are not explicitly passed as keyword arguments may be read out from an optional
+        configuration JSON file located in the same directory as the data files (when shuffle=True). Parameters
+        that may be passed in a configuration file include 'dims', 'ext', 'dtype', 'recursive', and 'nplanes'.
 
         Parameters
         ----------
@@ -381,15 +410,15 @@ class ThunderContext():
             Dimensions of input image data, for instance (1024, 1024, 48). Binary stack data will be interpreted as
             coming from a multidimensional array of the specified dimensions.
 
-            The first dimension of the passed dims tuple should be the one that is changing most rapidly
+            Dimensions are required for 'stack' inputFormat, either as an explicit keyword argument or in a
+            configuration JSON file. If inputFormat is 'tif', the dims parameter (if any) will be ignored;
+            data dimensions will instead be read out from the image file headers.
+
+            Stack data should be stored in row-major order (Fortran / Matlab convention) rather than column-major order
+            (C or python/numpy convention), where the first dimension corresponds to that which is changing most rapidly
             on disk. So for instance given dims of (x, y, z), the coordinates of the data in a binary stack file
-            should be ordered as [(x0, y0, z0), (x1, y0, z0), ..., (xN, y0, z0), (x0, y1, z0), (x1, y1, z0), ...,
-            (xN, yM, z0), (x0, y0, z1), ..., (xN, yM, zP)]. This is the opposite convention from that used by numpy,
-            which by default has the fastest-changing dimension listed last (column-major convention). Thus, if loading
-            a numpy array `ary`, where `ary.shape == (z, y, x)`, written to disk by `ary.tofile("myarray.stack")`, the
-            corresponding dims parameter should be (x, y, z).
-            If inputFormat is 'tif', the dims parameter (if any) will be ignored; data dimensions will instead
-            be read out from the tif file headers.
+            should be ordered as [(x0, y0, z0), (x1, y0, zo), ..., (xN, y0, z0), (x0, y1, z0), (x1, y1, z0), ...,
+            (xN, yM, z0), (x0, y0, z1), ..., (xN, yM, zP)].
 
         inputFormat: {'stack', 'tif'}. optional, default 'stack'
             Expected format of the input data. 'stack' indicates flat files of raw binary data, while 'tif' indicates
@@ -401,10 +430,11 @@ class ThunderContext():
             Extension required on data files to be loaded. By default will be "stack" if inputFormat=="stack", "tif" for
             inputFormat=='tif'.
 
-        dtype: string or numpy dtype. optional, default 'int16'
+        dtype: string dtype specifier or numpy dtype object, optional.
             Data type of the image files to be loaded, specified as a numpy "dtype" string. If inputFormat is
             'tif', the dtype parameter (if any) will be ignored; data type will instead be read out from the
-            tif headers.
+            image file headers. If inputFormat is 'stack', then dtype will be assumed to be 'int16' if it is not specified
+            either as a keyword parameter or in a configuration json file.
 
         blockSize: string formatted as e.g. "64M", "512k", "2G", or positive int, tuple of positive int, or instance of
                    BlockingStrategy. optional, default "150M"
@@ -463,30 +493,33 @@ class ThunderContext():
             all images are loaded. This should only be necessary at load time when different files contain
             different number of records. renumber is only supported for shuffle=True (the default). See
             Images.renumber().
+
+        confFilename: string, optional, default 'conf.json'
+            Path to optional JSON file with configuration options such as 'dims', 'dtype', 'ext', 'recursive', and
+            'nplanes'. confFilename may be an absolute or a relative path; relative paths will be interpreted
+            relative to the base directory given in 'dataPath'. If a configuration file is found, then parameters given
+            in this file will be used unless they are overridden by explicit keyword arguments. Not all parameters
+            are used by all inputFormats; see documentation for individual parameters above. JSON configuration files
+            are only supported for shuffle=True (the default).
         """
         checkParams(inputFormat, ['stack', 'tif', 'tif-stack'])
-
-        if inputFormat.lower() == 'stack' and not dims:
-            raise ValueError("Dimensions ('dims' parameter) must be specified if loading from binary image stack" +
-                             " ('stack' value for 'inputFormat' parameter)")
 
         if not overwrite:
             raiseErrorIfPathExists(outputDirPath, awsCredentialsOverride=self._credentials)
             overwrite = True  # prevent additional downstream checks for this path
-
-        if not ext:
-            ext = DEFAULT_EXTENSIONS.get(inputFormat.lower(), None)
 
         if shuffle:
             from thunder.rdds.fileio.imagesloader import ImagesLoader
             loader = ImagesLoader(self._sc)
             if inputFormat.lower() == 'stack':
                 images = loader.fromStack(dataPath, dims, ext=ext, dtype=dtype, startIdx=startIdx, stopIdx=stopIdx,
-                                          recursive=recursive, nplanes=nplanes, npartitions=npartitions)
+                                          recursive=recursive, nplanes=nplanes, npartitions=npartitions,
+                                          confFilename=confFilename)
             else:
                 # 'tif' or 'tif-stack'
                 images = loader.fromTif(dataPath, ext=ext, startIdx=startIdx, stopIdx=stopIdx,
-                                        recursive=recursive, nplanes=nplanes, npartitions=npartitions)
+                                        recursive=recursive, nplanes=nplanes, npartitions=npartitions,
+                                        confFilename=confFilename)
             if renumber:
                 images = images.renumber()
             images.toBlocks(blockSize, units=blockSizeUnits).saveAsBinarySeries(outputDirPath, overwrite=overwrite)
@@ -496,6 +529,14 @@ class ThunderContext():
                 raise NotImplementedError("nplanes is not supported with shuffle=False")
             if npartitions is not None:
                 raise NotImplementedError("npartitions is not supported with shuffle=False")
+            if renumber:
+                raise NotImplementedError("renumber is not supported with shuffle=False")
+            if confFilename != "conf.json":
+                raise NotImplementedError("JSON configuration files are not supported with shuffle=False")
+            # look up default extension for series loader; image loader will look in conf file
+            if not ext:
+                ext = DEFAULT_EXTENSIONS.get(inputFormat.lower(), None)
+
             loader = SeriesLoader(self._sc)
             if inputFormat.lower() == 'stack':
                 loader.saveFromStack(dataPath, outputDirPath, dims, ext=ext, dtype=dtype,

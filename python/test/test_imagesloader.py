@@ -1,3 +1,4 @@
+import json
 from numpy import arange, array_equal, ndarray
 from numpy import dtype as dtypeFunc
 import os
@@ -202,6 +203,30 @@ class TestImagesLoaderUsingOutputDir(PySparkTestCaseWithOutputDir):
         ary2.tofile(filename)
 
         image = ImagesLoader(self.sc).fromStack(self.outputdir, dims=(4, 2))
+
+        collectedImage = image.collect()
+        assert_equals(2, len(collectedImage))
+        assert_equals(0, collectedImage[0][0])  # check key
+        assert_equals(image.dims.count, collectedImage[0][1].shape)
+        assert_true(array_equal(ary.T, collectedImage[0][1]))  # check value
+        assert_equals(1, collectedImage[1][0])  # check image 2
+        assert_true(array_equal(ary2.T, collectedImage[1][1]))
+
+    def test_fromStacksWithConf(self):
+        ary = arange(8, dtype=dtypeFunc('int32')).reshape((2, 4))
+        ary2 = arange(8, 16, dtype=dtypeFunc('int32')).reshape((2, 4))
+        filename = os.path.join(self.outputdir, "test01.bin")
+        ary.tofile(filename)
+        filename = os.path.join(self.outputdir, "test02.bin")
+        ary2.tofile(filename)
+        conf = {"dims": (4, 2), "dtype": "int32", "ext": "bin"}
+        with open(os.path.join(self.outputdir, "conf.json"), 'w') as fp:
+            json.dump(conf, fp)
+
+        image = ImagesLoader(self.sc).fromStack(self.outputdir)
+        assert_equals("int32", image._dtype)
+        assert_equals(2, image._nrecords)
+        assert_equals((4, 2), image._dims.count)
 
         collectedImage = image.collect()
         assert_equals(2, len(collectedImage))

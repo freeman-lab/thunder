@@ -49,8 +49,73 @@ class ImagesLoader(object):
         return Images(self.sc.parallelize(enumerate(arrays), npartitions),
                       dims=shape, dtype=str(dtype), nrecords=narrays)
 
-    def fromStack(self, dataPath, dims, dtype='int16', ext='stack', startIdx=None, stopIdx=None, recursive=False,
-                  nplanes=None, npartitions=None):
+    class ParameterSpec(object):
+        __slots__ = ["name", "type", "default", "required"]
+
+        def __init__(self, name, type, default=None, required=False):
+            self.name, self.type, self.default, self.required = name, type, default, required
+
+    STACK_LOAD_PARAMETERS = [
+        ParameterSpec("dims", tuple, default=None, required=True),
+        ParameterSpec("dtype", str, default="int16", required=True),
+        ParameterSpec("ext", str, default="stack", required=False),
+        ParameterSpec("nplanes", int, default=None, required=False),
+        ParameterSpec("recursive", bool, default=False, required=False)
+    ]
+
+    @staticmethod
+    def reconcileParameters(parameterSpecs, *params):
+        """
+
+        Parameters:
+        -----------
+        parameterSpecs: collection of parameterSpecs describing parameters
+        params: dictionaries of key, value pairs, with highest precedence first
+
+        Returns:
+        --------
+        dict of str paramname: paramval
+        """
+        paramSpecDict = dict([(spec.name, spec) for spec in parameterSpecs])
+        curParams = dict([(spec.name, spec.default) for spec in parameterSpecs])
+        for paramDict in reversed(params):
+            paramCopy = {}
+            for k, v in paramDict.iteritems():
+                if k not in paramSpecDict or v is None:
+                    continue
+                else:
+                    paramCopy[k] = paramSpecDict[k].type(v)
+            curParams.update(paramCopy)
+        missing = []
+        for name, spec in paramSpecDict.iteritems():
+            if spec.required and curParams.get(name, None) is None:
+                missing.append(name)
+        if missing:
+            raise ValueError("Missing parameters - " +
+                             "these must be given either as arguments or in a configuration file: " +
+                             str(tuple(missing)))
+        return curParams
+
+    def __loadStackParametersAndDefaults(self, dataPath, confFilename, dims, dtype, ext, recursive, nplanes):
+        """Collects parameters to use for binary image stack loading.
+
+        Priority order is as follows:
+        1. parameters specified as keyword arguments;
+        2. parameters specified in a conf.json file on the local filesystem;
+        3. default parameters
+
+        Returns
+        -------
+        tuple of dims, dtype, ext, recursive, nplanes
+        """
+        confFileParams = self.loadConf(dataPath, confFilename=confFilename)
+        # pass args explicitly to this function to help ensure none are overlooked
+        keywordParams = {'dims': dims, 'dtype': dtype, 'ext': ext, 'recursive': recursive, 'nplanes': nplanes}
+        params = self.reconcileParameters(ImagesLoader.STACK_LOAD_PARAMETERS, keywordParams, confFileParams)
+        return params["dims"], params["dtype"], params["ext"], params["recursive"], params["nplanes"]
+
+    def fromStack(self, dataPath, dims=None, dtype=None, ext=None, startIdx=None, stopIdx=None, recursive=None,
+                  nplanes=None, npartitions=None, confFilename='conf.json'):
         """Load an Images object stored in a directory of flat binary files
 
         The RDD wrapped by the returned Images object will have a number of partitions equal to the number of image data
@@ -92,9 +157,8 @@ class ImagesLoader(object):
             If specified, request a certain number of partitions for the underlying Spark RDD. Default is 1
             partition per image file.
         """
-        if not dims:
-            raise ValueError("Image dimensions must be specified if loading from binary stack data")
-
+        dims, dtype, ext, recursive, nplanes = \
+            self.__loadStackParametersAndDefaults(dataPath, confFilename, dims, dtype, ext, recursive, nplanes)
         if nplanes is not None:
             if nplanes <= 0:
                 raise ValueError("nplanes must be positive if passed, got %d" % nplanes)
@@ -133,8 +197,32 @@ class ImagesLoader(object):
         newDims = tuple(list(dims[:-1]) + [nplanes]) if nplanes else dims
         return Images(readerRdd.flatMap(toArray), nrecords=nrecords, dims=newDims, dtype=dtype)
 
-    def fromTif(self, dataPath, ext='tif', startIdx=None, stopIdx=None, recursive=False, nplanes=None,
-                npartitions=None):
+    TIF_LOAD_PARAMETERS = [
+        ParameterSpec("ext", str, default="tif", required=False),
+        ParameterSpec("nplanes", int, default=None, required=False),
+        ParameterSpec("recursive", bool, default=False, required=False)
+    ]
+
+    def __loadTifParametersAndDefaults(self, dataPath, confFilename, ext, recursive, nplanes):
+        """Collects parameters to use for tif image loading.
+
+        Priority order is as follows:
+        1. parameters specified as keyword arguments;
+        2. parameters specified in a conf.json file on the local filesystem;
+        3. default parameters
+
+        Returns
+        -------
+        tuple of ext, recursive, nplanes
+        """
+        confFileParams = self.loadConf(dataPath, confFilename=confFilename)
+        # pass args explicitly to this function to help ensure none are overlooked
+        keywordParams = {'ext': ext, 'recursive': recursive, 'nplanes': nplanes}
+        params = self.reconcileParameters(ImagesLoader.TIF_LOAD_PARAMETERS, keywordParams, confFileParams)
+        return params["ext"], params["recursive"], params["nplanes"]
+
+    def fromTif(self, dataPath, ext=None, startIdx=None, stopIdx=None, recursive=False, nplanes=None,
+                npartitions=None, confFilename='conf.json'):
         """Sets up a new Images object with data to be read from one or more tif files.
 
         Multiple pages of a multipage tif file will by default be assumed to represent the z-axis (depth) of a
@@ -195,6 +283,8 @@ class ImagesLoader(object):
         else:
             from thunder.utils.common import pil_to_array
             conversionFcn = pil_to_array  # use our modified version of matplotlib's pil_to_array
+
+        ext, recursive, nplanes = self.__loadTifParametersAndDefaults(dataPath, confFilename, ext, recursive, nplanes)
 
         if nplanes is not None and nplanes <= 0:
             raise ValueError("nplanes must be positive if passed, got %d" % nplanes)
@@ -261,7 +351,31 @@ class ImagesLoader(object):
         nrecords = reader.lastNRecs if nplanes is None else None
         return Images(readerRdd.flatMap(multitifReader), nrecords=nrecords)
 
-    def fromPng(self, dataPath, ext='png', startIdx=None, stopIdx=None, recursive=False, npartitions=None):
+    PNG_LOAD_PARAMETERS = [
+        ParameterSpec("ext", str, default="png", required=False),
+        ParameterSpec("recursive", bool, default=False, required=False)
+    ]
+
+    def __loadPngParametersAndDefaults(self, dataPath, confFilename, ext, recursive):
+        """Collects parameters to use for png image loading.
+
+        Priority order is as follows:
+        1. parameters specified as keyword arguments;
+        2. parameters specified in a conf.json file on the local filesystem;
+        3. default parameters
+
+        Returns
+        -------
+        tuple of ext, recursive
+        """
+        confFileParams = self.loadConf(dataPath, confFilename=confFilename)
+        # pass args explicitly to this function to help ensure none are overlooked
+        keywordParams = {'ext': ext, 'recursive': recursive}
+        params = self.reconcileParameters(ImagesLoader.PNG_LOAD_PARAMETERS, keywordParams, confFileParams)
+        return params["ext"], params["recursive"]
+
+    def fromPng(self, dataPath, ext=None, startIdx=None, stopIdx=None, recursive=False, npartitions=None,
+                confFilename='conf.json'):
         """Load an Images object stored in a directory of png files
 
         The RDD wrapped by the returned Images object will have a number of partitions equal to the number of image data
@@ -290,6 +404,8 @@ class ImagesLoader(object):
             If specified, request a certain number of partitions for the underlying Spark RDD. Default is 1
             partition per image file.
         """
+        ext, recursive = self.__loadPngParametersAndDefaults(dataPath, confFilename, ext, recursive)
+
         def readPngFromBuf(buf):
             fbuf = BytesIO(buf)
             return imread(fbuf, format='png')
@@ -298,3 +414,25 @@ class ImagesLoader(object):
         readerRdd = reader.read(dataPath, ext=ext, startIdx=startIdx, stopIdx=stopIdx, recursive=recursive,
                                 npartitions=npartitions)
         return Images(readerRdd.mapValues(readPngFromBuf), nrecords=reader.lastNRecs)
+
+    def loadConf(self, dataPath, confFilename='conf.json'):
+        """Returns a dict loaded from a json file.
+
+        Looks for file named `conffile` in same directory as `dataPath`
+
+        Returns {} if file not found
+        """
+        if not confFilename:
+            return {}
+        from thunder.rdds.fileio.readers import getFileReaderForPath, FileNotFoundError
+        import json
+
+        reader = getFileReaderForPath(dataPath)(awsCredentialsOverride=self.awsCredentialsOverride)
+        try:
+            jsonBuf = reader.read(dataPath, filename=confFilename)
+        except FileNotFoundError:
+            return {}
+
+        params = json.loads(jsonBuf)
+
+        return params

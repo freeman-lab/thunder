@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 import json
@@ -73,7 +74,7 @@ class TestContextLoading(PySparkTestCaseWithOutputDir):
     def test_load3dStackAsSeriesWithShuffle(self):
         self.__run_load3dStackAsSeries(True)
 
-    def __run_loadMultipleStacksAsSeries(self, shuffle):
+    def __run_loadMultipleStacksAsSeries(self, shuffle, writeConf=False):
         rangeAry = arange(64*128, dtype=dtypeFunc('int16'))
         filePath = os.path.join(self.outputdir, "rangeary01.stack")
         rangeAry.tofile(filePath)
@@ -82,8 +83,14 @@ class TestContextLoading(PySparkTestCaseWithOutputDir):
         filePath = os.path.join(self.outputdir, "rangeary02.stack")
         rangeAry2.tofile(filePath)
         expectedAry2 = rangeAry2.reshape((128, 64), order='F')
-
-        rangeSeries = self.tsc.loadImagesAsSeries(self.outputdir, dims=(128, 64), shuffle=shuffle)
+        if writeConf:
+            conf = {"dims": (128, 64)}
+            with open(os.path.join(self.outputdir, "alternateConfName.json"), 'w') as fp:
+                json.dump(conf, fp)
+            rangeSeries = self.tsc.loadImagesAsSeries(self.outputdir, shuffle=shuffle,
+                                                      confFilename="alternateConfName.json")
+        else:
+            rangeSeries = self.tsc.loadImagesAsSeries(self.outputdir, dims=(128, 64), shuffle=shuffle)
         assert_equals('float32', rangeSeries._dtype)
 
         rangeSeriesAry = rangeSeries.pack()
@@ -103,6 +110,9 @@ class TestContextLoading(PySparkTestCaseWithOutputDir):
 
     def test_loadMultipleStacksAsSeriesWithShuffle(self):
         self.__run_loadMultipleStacksAsSeries(True)
+
+    def test_loadMultipleStacksAsSeriesWithConfFile(self):
+        self.__run_loadMultipleStacksAsSeries(True, writeConf=True)
 
     def test_loadMultipleMultipointStacksAsSeries(self):
         rangeAry = arange(64*128, dtype=dtypeFunc('int16'))
@@ -349,12 +359,12 @@ class TestLoadIrregularImages(PySparkTestCaseWithOutputDir):
 
     def _write_tiffs(self):
         import thunder.rdds.fileio.tifffile as tifffile
-        writer1 = tifffile.TiffWriter(os.path.join(self.outputdir, "tif01.tif"))
+        writer1 = tifffile.TiffWriter(os.path.join(self.outputdir, "tif01.TIF"))
         writer1.save(self.ary[:8].transpose((0, 2, 1)), photometric="minisblack")  # write out 8 pages
         writer1.close()
         del writer1
 
-        writer2 = tifffile.TiffWriter(os.path.join(self.outputdir, "tif02.tif"))
+        writer2 = tifffile.TiffWriter(os.path.join(self.outputdir, "tif02.TIF"))
         writer2.save(self.ary.transpose((0, 2, 1)), photometric="minisblack")  # write out all 16 pages
         writer2.close()
         del writer2
@@ -365,23 +375,31 @@ class TestLoadIrregularImages(PySparkTestCaseWithOutputDir):
         with open(os.path.join(self.outputdir, "stack02.bin"), "w") as f:
             self.ary.tofile(f)
 
-    def _run_tst(self, imgType, dtype):
+    def _run_tst(self, imgType, dtype, writeConf=False):
         self._generate_array(dtype)
         if imgType.lower().startswith('tif'):
             self._write_tiffs()
-            inputFormat, ext, dims = "tif", "tif", None
+            inputFormat, ext, dims = "tif", "TIF", None
         elif imgType.lower().startswith("stack"):
             self._write_stacks()
             inputFormat, ext, dims = "stack", "bin", (16, 4, 4)
         else:
             raise ValueError("Unknown imgType: %s" % imgType)
 
-        # with nplanes=2, this should yield a 12 record Images object, which after converting to
-        # a series and packing should be a 12 x 4 x 4 x 2 array.
-        # renumber=True is required in this case in order to ensure sensible results.
-        series = self.tsc.loadImagesAsSeries(self.outputdir, inputFormat=inputFormat, ext=ext,
-                                             blockSize=(2, 1, 1), blockSizeUnits="pixels",
-                                             nplanes=2, dims=dims, renumber=True)
+        if writeConf:
+            conf = {"ext": ext, "dims": dims, "nplanes": 2}
+            with open(os.path.join(self.outputdir, "conf.json"), "w") as fp:
+                json.dump(conf, fp)
+            series = self.tsc.loadImagesAsSeries(self.outputdir, inputFormat=inputFormat,
+                                                 blockSize=(2, 1, 1), blockSizeUnits="pixels",
+                                                 renumber=True)
+        else:
+            # with nplanes=2, this should yield a 12 record Images object, which after converting to
+            # a series and packing should be a 12 x 4 x 4 x 2 array.
+            # renumber=True is required in this case in order to ensure sensible results.
+            series = self.tsc.loadImagesAsSeries(self.outputdir, inputFormat=inputFormat, ext=ext,
+                                                 blockSize=(2, 1, 1), blockSizeUnits="pixels",
+                                                 nplanes=2, dims=dims, renumber=True)
         packedAry = series.pack()
         assert_equals((12, 4, 4, 2), packedAry.shape)
         assert_true(array_equal(self.ary[0:2], packedAry[0].T))
@@ -402,6 +420,9 @@ class TestLoadIrregularImages(PySparkTestCaseWithOutputDir):
 
     def test_loadMultipleUnsignedIntTifsAsSeries(self):
         self._run_tst('tif', 'uint16')
+
+    def test_loadMultipleTifsAsSeriesWithConf(self):
+        self._run_tst('tif', 'uint16', writeConf=True)
 
     # can't currently have binary stack files of different sizes, since we have
     # fixed `dims` for all stacks. leaving in place b/c it seems like something
