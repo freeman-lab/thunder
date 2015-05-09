@@ -48,7 +48,7 @@ def main():
     if "-h" in childArgs or "--help" in childArgs:
         print >> sys.stderr, getFilteredHelpMessage(sparkSubmit, getUsage())
     else:
-        os.execv(sparkSubmit, childArgs)
+        os.execv(sparkSubmit, [sparkSubmit,]+childArgs)
 
 if __name__ == "__main__":
     main()
