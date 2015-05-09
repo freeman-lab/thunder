@@ -54,7 +54,7 @@ def main():
         raise Exception("Did not recognize a known example analysis name; must be a script in %s (one of: %s)" %
                         (getStandaloneDir(), str(getExampleNames())[1:-1]))
 
-    os.system(sparkSubmit + " " + " ".join(childArgs))
+    os.execv(sparkSubmit, [sparkSubmit,]+childArgs)
 
 if __name__ == "__main__":
     main()

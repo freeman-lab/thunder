@@ -15,11 +15,9 @@ def main():
     os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HOME'] + "/ec2/"
     os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + os.environ['SPARK_HOME'] + "/ec2/third_party/boto-2.4.1.zip/boto-2.4.1"
 
-    args = " ".join(sys.argv[1:])
-
     ec2script = os.path.join(os.path.dirname(os.path.realpath(thunder.__file__)), "utils/ec2.py")
-
-    os.system("python " + ec2script + " " + args)
+    
+    os.execv("python", ["python",ec2script]+sys.argv[1:])
 
 if __name__ == "__main__":
     main()
