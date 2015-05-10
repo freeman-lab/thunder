@@ -44,6 +44,7 @@ if os.getenv('PYTHONPATH') is None:
     os.environ['PYTHONPATH'] = ""
 
 sys.path.insert(0,spark+"/ec2/")
+sys.path.insert(0,spark+"/ec2/third_party/boto-2.4.1.zip/boto-2.4.1")
 from spark_ec2 import launch_cluster, get_existing_cluster, stringify_command,\
     deploy_files, get_spark_ami, ssh_read, ssh_write
 try:
@@ -51,7 +52,6 @@ try:
 except ImportError:
     from spark_ec2 import wait_for_cluster_state
 
-sys.path.insert(0,spark+"/ec2/third_party/boto-2.4.1.zip/boto-2.4.1")
 from boto import ec2
 
 MINIMUM_SPARK_VERSION = "1.1.0"
