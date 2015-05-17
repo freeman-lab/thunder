@@ -59,6 +59,32 @@ Configuration and installation
 
 	Yes. We are preparing a how-to that explains how to do this.
 
+	Here are some instructions to set up thunder on a standalone (SMP) server. Tested on Mac OS X and Debian 7 (wheezy).
+
+	* Install `Spark <https://spark.apache.org/downloads.html>`_. Select Spark |ge| 1.2.0, Pre-built for Hadoop 1.X (not sure how much the Hadoop bit matters - we won't use Hadoop).
+
+	  .. |ge| unicode:: U+2265
+
+	* Edit ``$SPARK_HOME/conf/spark-defaults.conf`` and add the following lines::
+
+	    spark.driver.memory              20g
+            spark.driver.maxResultSize       20g
+
+	  You may have to increase these values in case you use larger data sets.
+
+	* Thunder users will have to increase their open file limit before they launch thunder. Add the following line to the bottom of ``/etc/security/limits.conf``::
+
+	    *               hard    nofile             1048576
+
+	  All thunder users should then add the following to their ``.bashrc`` (or ``.profile`` on OS X)::
+
+	    ulimit -Sn unlimited
+
+	* The following lines in your ``.bashrc`` (or ``.profile`` on OS X) will set up ``SPARK_HOME`` and ``SPARK_LOCAL_DIRS`` during login. It makes sense to use a separate tmp directory for spark (``SPARK_LOCAL_DIRS``) to make it easier to clean up the mess it leaves behind from time to time. Make sure to ``mkdir ${HOME}/spark-tmp`` before you start spark for the first time.::
+
+	    export SPARK_HOME=/usr/local/spark
+	    export SPARK_LOCAL_DIRS=${HOME}/spark-tmp
+
 *How many cores / cluster nodes / total amount of RAM do I need?*
 
 	In general, fewer nodes with more cores and RAM is better than more, under-powered nodes, because it minimizes network communication (which is a limiting factor in some, though not all, workflows). For RAM, a good rule of thumb is to determine the size of your data, or at least the portion you want to cache, and then use a cluster with at least twice that much RAM in total. For numbers of nodes and cores, you want at least enough cores so that there are approximately 2-3 partitions of data per core, and partitions are usually ~50MB. So as an example, for an 100GB data set with 2000 partitions, you would do well for memory and computing with 10 nodes each having 32 cores and 64GB RAM, for a total of 320 cores and 640GB RAM.
