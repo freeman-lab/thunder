@@ -147,7 +147,7 @@ def transformArguments(args):
     else:
         thunderEgg = None
 
-    thunderJar = findThunderJar()
+    thunderJar = '"%s"' % findThunderJar()
 
     # update arguments list with new values
     pyFiles = getCommaSeparatedOptionsList("--py-files", opts.get("py-files", []), thunderEgg)

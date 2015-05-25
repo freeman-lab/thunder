@@ -30,7 +30,14 @@ setup(
               'thunder.utils',
               'thunder.utils.data',
               'thunder.viz'],
-    scripts = ['bin/thunder', 'bin/thunder-submit', 'bin/thunder-submit-example', 'bin/thunder-ec2'],
+    entry_points = {
+        'console_scripts': [ 
+            'thunder = thunder.commands.local:main',
+            'thunder-submit = thunder.commands.submit:main',
+            'thunder-submit-example = thunder.commands.submit_example:main',
+            'thunder-ec2 = thunder.utils.ec2:main',
+        ]
+    },
     package_data = {'thunder.utils': ['data/fish/series/conf.json', 'data/fish/series/*.bin', 'data/fish/images/*.tif', 'data/iris/conf.json', 'data/iris/iris.bin', 'data/iris/iris.mat', 'data/iris/iris.npy', 'data/iris/iris.txt', 'data/mouse/images/conf.json', 'data/mouse/images/*.bin', 'data/mouse/params/covariates.json', 'data/mouse/series/conf.json', 'data/mouse/series/*.bin'], 'thunder.lib': ['thunder_2.10-' + str(thunder.__version__) + '.jar', 'thunder_python-' + str(thunder.__version__) + '-py2.7.egg']},
     long_description=open('README.rst').read(),
     install_requires=open('requirements.txt').read().split()

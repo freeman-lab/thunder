@@ -23,7 +23,6 @@ loads example data sets
 #
 # Modified from Spark's spark_ec2.py under the terms of the ASF 2.0 license.
 
-from boto import ec2
 import sys
 import os
 import random
@@ -33,16 +32,27 @@ from termcolor import colored
 from distutils.version import LooseVersion
 from sys import stderr
 from optparse import OptionParser
+
+
+from thunder import __version__ as THUNDER_VERSION
+
+spark = os.getenv('SPARK_HOME')
+if spark is None or spark == '':
+    raise Exception('must assign the environmental variable SPARK_HOME with the location of Spark')
+
+if os.getenv('PYTHONPATH') is None:
+    os.environ['PYTHONPATH'] = ""
+
+sys.path.insert(0,spark+"/ec2/")
+sys.path.insert(0,spark+"/ec2/third_party/boto-2.4.1.zip/boto-2.4.1")
 from spark_ec2 import launch_cluster, get_existing_cluster, stringify_command,\
     deploy_files, get_spark_ami, ssh_read, ssh_write
-
 try:
     from spark_ec2 import wait_for_cluster
 except ImportError:
     from spark_ec2 import wait_for_cluster_state
 
-from thunder import __version__ as THUNDER_VERSION
-
+from boto import ec2
 
 MINIMUM_SPARK_VERSION = "1.1.0"
 
@@ -342,7 +352,7 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
                           "-b v4")
 
     print_status("Deploying files to master")
-    deploy_folder = os.path.join(os.environ['SPARK_HOME'], "ec2", "deploy.generic")
+    deploy_folder = os.path.join(spark, "ec2", "deploy.generic")
     with quiet():
         deploy_files(conn, deploy_folder, opts, master_nodes, slave_nodes, modules)
     print_success()
@@ -351,8 +361,7 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
     setup_spark_cluster(master, opts)
     print_success()
 
-
-if __name__ == "__main__":
+def main():
     spark_home_version_string = get_spark_version_string(MINIMUM_SPARK_VERSION)
     spark_home_loose_version = LooseVersion(spark_home_version_string)
 
@@ -651,3 +660,7 @@ if __name__ == "__main__":
 
         else:
             raise NotImplementedError("action: " + action + "not recognized")
+
+
+if __name__ == "__main__":
+    main()
