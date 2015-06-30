@@ -1,4 +1,4 @@
-from numpy import asarray, maximum, minimum
+from numpy import asarray, cumsum, maximum, minimum
 
 
 class Data(object):
@@ -297,6 +297,26 @@ class Data(object):
         """
         return self.rdd.keys()
 
+    def keysToIndices(self):
+        """
+        Replace the keys with one-dimensional indices from 0 to n
+
+        Returns a new Data object
+        """
+        def getSize(x): yield sum(1 for _ in x)
+        # First get the sizes of the partitions
+        counts = self.rdd.mapPartitions(getSize).collect()
+        # Get the starting indices of each partition
+        counts.insert(0, 0)
+        starts = self.rdd.context.broadcast(cumsum(counts)[0:-1])
+        # Replace the keys
+        def replaceKeys(index, iterator):
+          i = starts.value[index]
+          for _, x in iterator:
+            yield i, x
+            i += 1
+        return self.replace(self.rdd.mapPartitionsWithIndex(replaceKeys), True, True)
+
     def astype(self, dtype, casting='safe'):
         """
         Cast values to specified numpy dtype.
@@ -360,12 +380,7 @@ class Data(object):
             Whether to preserve the index, if false index will be set to none
             under the assumption that the function might change it
         """
-        noprop = ()
-        if keepDtype is False:
-            noprop += ('_dtype',)
-        if keepIndex is False:
-            noprop += ('_index',)
-        return self._constructor(self.rdd.map(func)).__finalize__(self, noPropagate=noprop)
+        return self.replace(self.rdd.map(func), keepDtype, keepIndex)
 
     def applyKeys(self, func, **kwargs):
         """
@@ -579,6 +594,33 @@ class Data(object):
         """
         self.rdd = self.rdd.repartition(numPartitions)
         return self
+
+    def replace(self, newRdd, keepDtype=False, keepIndex=False):
+        """
+        Replace the rdd inside a Data object.
+
+        This wraps function handles replacing the underlying RDD and
+        returning a reconstructed Data object.
+
+        Parameters
+        ----------
+        func : function
+            Function to apply to records.
+
+        keepDtype : boolean
+            Whether to preserve the dtype, if false dtype will be set to none
+            under the assumption that the function might change it
+
+        keepIndex : boolean
+            Whether to preserve the index, if false index will be set to none
+            under the assumption that the function might change it
+        """
+        noprop = ()
+        if keepDtype is False:
+            noprop += ('_dtype',)
+        if keepIndex is False:
+            noprop += ('_index',)
+        return self._constructor(newRdd).__finalize__(self, noPropagate=noprop)
 
     def filter(self, func):
         """

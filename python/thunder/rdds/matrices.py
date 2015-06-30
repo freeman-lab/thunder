@@ -269,6 +269,40 @@ class RowMatrix(Series):
         """
         return RowMatrix.elementwise(self, other, divide)
 
+    def transpose(self, replaceKeys=True):
+        """
+        Transpose the matrix
+
+        This method relies on the matrix having keys corresponding to row indices
+        By default it will call keysToIndices to guarantee this
+
+        Parameters
+        ----------
+        replaceKeys : bool, optional, default=True
+            Whether to replace the keys with row indices
+        """
+        from numpy import add, zeros
+        if replaceKeys:
+          rowIndexed = self.keysToIndices().rdd
+        else:
+          rowIndexed = self.rdd
+        nrows = self.nrows
+        ncols = self.ncols
+
+        # Convert every row into a list of (colIndex, (rowIndex, val))
+        def toPairs(x):
+          k = x[0]
+          v = x[1]
+          return [(i, (k, v[i])) for i in range(ncols)]
+        coords = rowIndexed.flatMap(toPairs)
+        def addCoord(col, x):
+          col[x[0]] = x[1]
+          return col
+        def combCols(col1, col2):
+          add(col1, col2, col1)
+          return col1
+        transposeRdd = coords.aggregateByKey(zeros(nrows), addCoord, combCols)
+        return RowMatrix(transposeRdd.sortByKey())
 
 def matrixSumIterator_self(iterator):
     yield sum(outer(x, x) for x in iterator)
