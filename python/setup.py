@@ -26,6 +26,8 @@ setup(
               'thunder.rdds.fileio',
               'thunder.rdds.imgblocks',
               'thunder.regression',
+              'thunder.regression.linear',
+              'thunder.regression.nonlinear',
               'thunder.standalone',
               'thunder.utils',
               'thunder.utils.data',

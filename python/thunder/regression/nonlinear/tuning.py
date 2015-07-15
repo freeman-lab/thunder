@@ -8,6 +8,7 @@ from thunder.rdds.series import Series
 from thunder.utils.common import loadMatVar
 
 
+
 class TuningModel(object):
     """
     Base class for loading and fitting tuning models.
