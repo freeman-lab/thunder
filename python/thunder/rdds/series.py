@@ -302,13 +302,13 @@ class Series(Data):
 
         # handle the case of a 1d signal
         if s.ndim == 1:
-            if size(s) != size(self.index):
+            if size(s) != self.index.shape[0]:
                 raise Exception('Size of signal to correlate with, %g, does not match size of series' % size(s))
             rdd = self.rdd.mapValues(lambda x: corrcoef(x, s)[0, 1])
             newIndex = 0
         # handle multiple 1d signals
         elif s.ndim == 2:
-            if s.shape[1] != size(self.index):
+            if s.shape[1] != self.index.shape[0]:
                 raise Exception('Length of signals to correlate with, %g, does not match size of series' % s.shape[1])
             rdd = self.rdd.mapValues(lambda x: array([corrcoef(x, y)[0, 1] for y in s]))
             newIndex = range(0, s.shape[0])
