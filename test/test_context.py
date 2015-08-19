@@ -1,5 +1,5 @@
 import os
-import unittest
+import unittest2 as unittest
 import json
 import tempfile
 from nose.tools import assert_equals, assert_true

@@ -1,4 +1,7 @@
-from nose.tools import assert_equals, assert_is_none, assert_is_not_none, assert_raises, assert_true
+try:
+    from nose.tools import assert_equals, assert_is_none, assert_is_not_none, assert_raises, assert_true
+except:
+    from nose_extra_tools import assert_equals, assert_is_none, assert_is_not_none, assert_raises, assert_true
 from numpy import allclose, array, array_equal, can_cast, float32
 
 from thunder.rdds.data import Data

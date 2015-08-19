@@ -124,7 +124,7 @@ class Serializable(object):
         return dict([(attr, getattr(objInstance, attr)) for attr in slots if hasattr(objInstance, attr)])
 
     def __serializeRecursively(self, data, numpyStorage):
-        from collections import OrderedDict
+        from ordereddict import OrderedDict
         from numpy import ndarray
         import datetime
 
@@ -155,7 +155,7 @@ class Serializable(object):
                 return [self.__serializeRecursively(val, numpyStorage) for val in data]
         elif dataType == OrderedDict:
             return {
-                "py/collections.OrderedDict": [
+                "py/ordereddict.OrderedDict": [
                     [self.__serializeRecursively(k, numpyStorage),
                      self.__serializeRecursively(v, numpyStorage)] for k, v in data.iteritems()
                 ]
@@ -315,9 +315,9 @@ class Serializable(object):
                 from collections import namedtuple
                 data = restoreRecursively(dct["py/collections.namedtuple"])
                 return namedtuple(data["type"], data["fields"])(*data["values"])
-            elif "py/collections.OrderedDict" == dataKey:
-                from collections import OrderedDict
-                return OrderedDict(restoreRecursively(dct["py/collections.OrderedDict"]))
+            elif "py/ordereddict.OrderedDict" == dataKey:
+                from ordereddict import OrderedDict
+                return OrderedDict(restoreRecursively(dct["py/ordereddict.OrderedDict"]))
             elif "py/datetime.datetime" == dataKey:
                 from dateutil import parser
                 return parser.parse(dct["py/datetime.datetime"])

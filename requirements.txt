@@ -5,3 +5,7 @@ scikit-learn
 scikit-image
 matplotlib
 zope.cachedescriptors
+unittest2
+ordereddict
+nose_extra_tools
+importlib

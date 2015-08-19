@@ -2,7 +2,7 @@ import json
 from numpy import arange, array_equal, ndarray
 from numpy import dtype as dtypeFunc
 import os
-import unittest
+import unittest2 as unittest
 from nose.tools import assert_almost_equal, assert_equals, assert_raises, assert_true
 
 from thunder.rdds.fileio.imagesloader import ImagesLoader

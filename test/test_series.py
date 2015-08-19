@@ -1,7 +1,10 @@
 from numpy import allclose, amax, arange, array, array_equal
 from numpy import dtype as dtypeFunc
 from numpy.testing import assert_array_equal, assert_equal
-from nose.tools import assert_equals, assert_is_none, assert_is_not_none, assert_raises, assert_true
+try:
+    from nose.tools import assert_equals, assert_is_none, assert_is_not_none, assert_raises, assert_true
+except:
+    from nose_extra_tools import assert_equals, assert_is_none, assert_is_not_none, assert_raises, assert_true
 
 from thunder.rdds.series import Series
 from test_utils import *
