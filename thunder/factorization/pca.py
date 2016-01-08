@@ -71,6 +71,11 @@ class PCA(object):
         self.latent = svd.s
         self.comps = svd.v
 
+        # taken from/modelled after sklearn, see:
+        # https://github.com/scikit-learn/scikit-learn/blob/master/sklearn/decomposition/pca.py#L274-L277
+        self.explained_variance_ = (self.svd.s ** 2) / data.count()
+        self.explained_variance_ratio_ = (self.explained_variance_ / self.explained_variance_.sum())
+        
         return self
 
     def transform(self, data):
