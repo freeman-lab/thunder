@@ -1,7 +1,7 @@
 import pytest
 from numpy import allclose, arange, array, asarray, dot, cov
 
-from thunder.series.readers import fromlist
+from thunder.series.readers import fromlist, fromarray
 from thunder.series.timeseries import TimeSeries
 
 pytestmark = pytest.mark.usefixtures("eng")
@@ -40,6 +40,12 @@ def test_between(eng):
     val = data.between(0, 2)
     assert allclose(val.index, array([0, 1]))
     assert allclose(val.toarray(), array([[4, 5], [8, 9]]))
+
+def test_flatten(eng):
+    arr = arange(2*2*5).reshape(2, 2, 5)
+    data = fromarray(arr, engine=eng)
+    assert data.flatten().shape == (4, 5)
+    assert allclose(data.flatten().toarray(), arr.reshape(2*2, 5))
 
 
 def test_first(eng):

@@ -3,7 +3,7 @@ from itertools import product
 from numpy import array, sum, mean, median, std, size, arange, percentile,\
     asarray, zeros, corrcoef, where, unique, array_equal, delete, \
     ravel, logical_not, max, min, unravel_index, prod, random, shape, \
-    dot, outer, expand_dims, ScalarType, ndarray
+    dot, outer, expand_dims, ScalarType, ndarray, prod
 from bolt.utils import tupleize
 from six import string_types
 
@@ -165,6 +165,9 @@ class Series(Data):
         """
         Filter by applying a function to each series.
         """
+        if len(self.baseaxes) > 1:
+            raise NotImplementedError("Series.filter only allowed with single-dimensional keys")
+
         return self._filter(func, axis=self.baseaxes)
 
     def reduce(self, func):
@@ -351,6 +354,15 @@ class Series(Data):
         """
         func = lambda x: zeros(x.shape) if max(x) < threshold else x
         return self.map(func)
+
+    def flatten(self):
+        """
+        Reshape all dimensions but the last into a single dimension
+        """
+
+        size = prod(self.shape[:-1])
+        newvalues = self.values.reshape(size, self.shape[-1])
+        return self._constructor(newvalues).__finalize__(self)
 
     def correlate(self, signal):
         """

@@ -340,7 +340,7 @@ class Data(Base):
             return self._constructor(filtered).__finalize__(self)
 
         if self.mode == 'spark':
-            filtered = self.values.filter(func)
+            filtered = self.values.filter(func, axis=axis)
             return self._constructor(filtered).__finalize__(self)
 
     def _map(self, func, axis=(0,), value_shape=None, with_keys=False):
