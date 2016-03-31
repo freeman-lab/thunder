@@ -2,11 +2,12 @@ import shutil
 import tempfile
 
 from test_utils import PySparkTestCase
-from numpy import allclose, dstack, mean, random, ndarray
+from numpy import allclose, dstack, mean, random, ndarray, zeros, pi
 from scipy.ndimage.interpolation import shift
 from nose.tools import assert_true
 
 from thunder.registration.registration import Registration
+from thunder.registration.transformation import TranslationTransformation, EuclideanTransformation
 from thunder.rdds.fileio.imagesloader import ImagesLoader
 
 
@@ -173,3 +174,51 @@ class TestCrossCorr(ImgprocessingTestCase):
         imOut = Registration('planarcrosscorr').prepare(ref).run(imIn).first()[1]
         assert_true(allclose(paramOut, [[2, -2], [2, -2], [2, -2]]))
         assert_true(allclose(ref[:-2, 2:, :], imOut[:-2, 2:, :]))
+
+
+class TestTransformation(ImgprocessingTestCase):
+    def test_translation(self):
+        im = zeros((5, 5))
+        im[2:4, 2:4] = 1.0
+        expected = zeros((5, 5))
+        expected[3:, :2] = 1.0
+        tfm = TranslationTransformation(shift=(1, -2))
+        out = tfm.apply(im)
+        assert_true(allclose(out, expected))
+
+    def _run_euclidean_test(self, sz):
+        im = zeros((sz, sz))
+        im[:1, :] = 1.0
+        expected = zeros((sz, sz))
+        expected[:, 2] = 1.0
+        tfm = EuclideanTransformation(shift=(2.0, 0.0), rotation=pi/2)
+        out = tfm.apply(im)
+        assert_true(allclose(out, expected))
+
+    def test_euclidean(self):
+        self._run_euclidean_test(5)
+        self._run_euclidean_test(6)
+
+
+class TestLucasKanade(ImgprocessingTestCase):
+    def test_euclidean(self):
+        vol = zeros((16, 16))
+        vol[4:12, 4:8] = 1.0
+        rot = pi / 8.0
+        trueTfm = EuclideanTransformation((0, 1),  rot)
+        volTfm = trueTfm.apply(vol)
+
+        reg = Registration('lucaskanade', transformationType='Euclidean').prepare(volTfm)
+        predTfm = reg.getTransform(vol)
+        print trueTfm.getParams(), predTfm.getParams()
+        assert_true(allclose(trueTfm.getParams(), predTfm.getParams(), atol=1e-2))
+
+    def test_translation(self):
+        vol = zeros((16, 16))
+        vol[4:12, 4:8] = 1.0
+        trueTfm = TranslationTransformation((1.75, -2.5))
+        volTfm = trueTfm.apply(vol)
+        reg = Registration('lucaskanade', transformationType='Translation').prepare(volTfm)
+        predTfm = reg.getTransform(vol)
+        print trueTfm.getParams(), predTfm.getParams()
+        assert_true(allclose(trueTfm.getParams(), predTfm.getParams(), atol=1e-2))

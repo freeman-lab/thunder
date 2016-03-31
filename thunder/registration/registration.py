@@ -20,15 +20,17 @@ class Registration(object):
     def __new__(cls, method, **kwargs):
 
         from thunder.registration.methods.crosscorr import CrossCorr, PlanarCrossCorr
+        from thunder.registration.methods.lucaskanade import LucasKanade
 
         REGMETHODS = {
             'crosscorr': CrossCorr,
-            'planarcrosscorr': PlanarCrossCorr
+            'planarcrosscorr': PlanarCrossCorr,
+            'lucaskanade': LucasKanade,
         }
 
         checkParams(method, REGMETHODS.keys())
 
-        return REGMETHODS[method](kwargs)
+        return REGMETHODS[method](**kwargs)
 
     @staticmethod
     def load(file):
