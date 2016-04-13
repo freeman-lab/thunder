@@ -332,6 +332,7 @@ def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=Non
 
     nplanes : positive integer, optional, default = None
         If passed, will cause single files to be subdivided into nplanes separate images.
+        If nplanes does not evenly divide the page count, the remaining pages will be discarded.
         Otherwise, each file is taken to represent one image.
 
     npartitions : int, optional, default = None
@@ -352,8 +353,9 @@ def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=Non
         tfh = tifffile.TiffFile(fbuf)
         ary = tfh.asarray()
         pageCount = ary.shape[0]
+        pageCount = pageCount - pageCount % nplanes
         if nplanes is not None:
-            values = [ary[i:(i+nplanes)] for i in range(0, ary.shape[0], nplanes)]
+            values = [ary[i:(i+nplanes)] for i in range(0, pageCount, nplanes)]
         else:
             values = [ary]
         tfh.close()
@@ -361,8 +363,6 @@ def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=Non
         if ary.ndim == 3:
             values = [val.squeeze() for val in values]
 
-        if nplanes and (pageCount % nplanes):
-            raise ValueError("nplanes '%d' does not evenly divide '%d'" % (nplanes, pageCount))
         nvals = len(values)
         keys = [(idx*nvals + timepoint,) for timepoint in range(nvals)]
         return zip(keys, values)
