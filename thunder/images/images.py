@@ -1,11 +1,57 @@
 import logging
 from numpy import ndarray, arange, amax, amin, size, asarray, random, prod, \
-    apply_along_axis
+    apply_along_axis, nanmean, nanstd, nanmin, nanmax, nansum, nanmedian, inf, subtract
+	
 from itertools import product
 
 from ..base import Data
 from ..blocks.local import LocalBlocks
 
+class Dimensions(object):
+    """ Class for estimating and storing dimensions of data based on the keys """
+
+    def __init__(self, values=[], n=3):
+        self.min = tuple(map(lambda i: inf, range(0, n)))
+        self.max = tuple(map(lambda i: -inf, range(0, n)))
+
+        for v in values:
+            self.merge(v)
+
+    def merge(self, value):
+        self.min = tuple(map(min, self.min, value))
+        self.max = tuple(map(max, self.max, value))
+        return self
+
+    def mergeDims(self, other):
+        self.min = tuple(map(min, self.min, other.min))
+        self.max = tuple(map(max, self.max, other.max))
+        return self
+
+    @property
+    def count(self):
+        return tuple(map(lambda x: x + 1, map(subtract, self.max, self.min)))
+
+    @classmethod
+    def fromTuple(cls, tup):
+        """ Generates a Dimensions object from the passed tuple. """
+        mx = [v-1 for v in tup]
+        mn = [0] * len(tup)
+        return cls(values=[mx, mn], n=len(tup))
+
+    def __str__(self):
+        return str(self.count)
+
+    def __repr__(self):
+        return str(self.count)
+
+    def __len__(self):
+        return len(self.min)
+
+    def __iter__(self):
+        return iter(self.count)
+
+    def __getitem__(self, item):
+        return self.count[item]
 
 class Images(Data):
     """
@@ -173,6 +219,8 @@ class Images(Data):
 
         return self._constructor(result)
 
+
+
     def map(self, func, dims=None, with_keys=False):
         """
         Map an array -> array function over each image.
@@ -236,6 +284,55 @@ class Images(Data):
         Compute the min across images.
         """
         return self._constructor(self.values.min(axis=0, keepdims=True))
+
+
+    def nanmean(self):
+        """
+        Compute the mean across images ignoring the NaNs
+        """
+        return self._constructor(self.values.nanmean(axis=0, keepdims=True))
+
+    def nancount(self):
+        """
+        Compute the mean across images ignoring the NaNs
+        """
+        return self._constructor(self.values.nancount(axis=0, keepdims=True))
+
+    def nanmax(self):
+        """
+        Compute the max across images ignoring the NaNs
+        """
+        return self._constructor(self.values.nanmax(axis=0, keepdims=True))
+
+    def nanmin(self):
+        """
+        Compute the min across images ignoring the NaNs
+        """
+        return self._constructor(self.values.nanmin(axis=0, keepdims=True))
+
+    def nanstd(self):
+        """
+        Compute the standard deviation across images ignoring the NaNs
+        """
+        return self._constructor(self.values.nanstd(axis=0, keepdims=True))
+
+    def nansum(self):
+        """
+        Compute the sum across images ignoring the NaNs
+        """
+        return self._constructor(self.values.nansum(axis=0, keepdims=True))
+
+    def nanvariance(self):
+        """
+        Compute the sum across images ignoring the NaNs
+        """
+        return self._constructor(self.values.nanvar(axis=0, keepdims=True))
+
+    def nanmedian(self):
+        """
+        Compute the median across images ignoring the NaNs
+        """
+        return self._constructor(nanmedian(self.values, axis=0))
 
     def squeeze(self):
         """
