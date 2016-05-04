@@ -1,6 +1,8 @@
 import itertools
 from io import BytesIO
 from numpy import frombuffer, prod, random, asarray, expand_dims
+from gdalconst import *
+
 
 from ..utils import check_spark, check_options
 spark = check_spark()
@@ -348,21 +350,25 @@ def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=Non
         Labels for records. If provided, should be one-dimensional.
     """
     import skimage.external.tifffile as tifffile
-
+    from osgeo import gdal
+    
     if nplanes is not None and nplanes <= 0:
         raise ValueError('nplanes must be positive if passed, got %d' % nplanes)
 
     def getarray(idxAndBuf):
         idx, buf = idxAndBuf
         fbuf = BytesIO(buf)
-        tfh = tifffile.TiffFile(fbuf)
-        ary = tfh.asarray()
+        fbuf.seek(0)
+        gdal.FileFromMemBuffer('/vsimem/tiffinmem', fbuf.read(-1))
+        raster = gdal.Open('/vsimem/tiffinmem', GA_ReadOnly)
+        ary = raster.ReadAsArray()
+        raster = None
+        gdal.Unlink('/vsimem/tiffinmem')
         pageCount = ary.shape[0]
         if nplanes is not None:
             values = [ary[i:(i+nplanes)] for i in range(0, ary.shape[0], nplanes)]
         else:
             values = [ary]
-        tfh.close()
 
         if ary.ndim == 3:
             values = [val.squeeze() for val in values]
