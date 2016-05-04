@@ -8,7 +8,7 @@ try:
     import pydoop.hdfs as hdfs
 except ImportError:
     # If pydoop import fails, then HDFSParalellReader will error out. 
-	pass
+    pass
 
 # library reorganization between Python 2 and 3
 try:
