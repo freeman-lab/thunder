@@ -83,7 +83,7 @@ def _hdfsRead(filePath, startOffset=None, size=-1):
             if startOffset:
                 f.seek(startOffset)
             buf = f.read(size)
-    except IOError, e:
+    except IOError as e:
         if e.errno == errno.ENOENT:
             raise FileNotFoundError(e)
         else:
