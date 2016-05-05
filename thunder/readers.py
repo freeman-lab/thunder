@@ -376,7 +376,6 @@ class HDFSFileReader(object):
         if len(filenames) > 1:
             raise ValueError("Found multiple files matching: '%s'" % dataPath)
         hdfs_obj = hdfs.hdfs()
-        print filenames[0]
 		
         return hdfs_obj.open_file(filenames[0], 'r')
 
