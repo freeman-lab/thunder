@@ -153,7 +153,7 @@ class HDFSParallelReader(object):
         lfilepaths = len(filePaths)
         self.lastNRecs = lfilepaths
         npartitions = min(npartitions, lfilepaths) if npartitions else lfilepaths
-        return self.sc.parallelize(enumerate(filePaths), npartitions).map(lambda (k, v): (k, _hdfsRead(v)))
+        return self.sc.parallelize(enumerate(filePaths), npartitions).map(lambda k, v: (k, _hdfsRead(v)))
 
         # side note: the use of parallelize on the line above is a little suspect. If the data is small enough to be 
         #            read into a file stream then sent to spark to be parallelized, then do we really need to use Spark 
