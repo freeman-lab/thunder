@@ -247,7 +247,7 @@ class Series(Data):
         if self.mode == 'spark':
             return self._constructor(self.values.nanmean(axis=self.baseaxes, keepdims=True))
         else:
-            return self._constructor(expand_dims(nanmean(self.values, axis=self.baseaxes), axis=self.baseaxes))
+            return self._constructor(expand_dims(nanmean(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
 
     def nanvar(self):
         """
@@ -256,7 +256,7 @@ class Series(Data):
         if self.mode == 'spark':
             return self._constructor(self.values.nanvar(axis=self.baseaxes, keepdims=True))
         else:
-            return self._constructor(expand_dims(nanvar(self.values, axis=self.baseaxes), axis=self.baseaxes))
+            return self._constructor(expand_dims(nanvar(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
 
     def nanstd(self):
         """
@@ -265,7 +265,7 @@ class Series(Data):
         if self.mode == 'spark':
             return self._constructor(self.values.nanstd(axis=self.baseaxes, keepdims=True))
         else:
-            return self._constructor(expand_dims(nanstd(self.values, axis=self.baseaxes), axis=self.baseaxes))
+            return self._constructor(expand_dims(nanstd(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
 
     def nansum(self):
         """
@@ -274,7 +274,7 @@ class Series(Data):
         if self.mode == 'spark':
             return self._constructor(self.values.nansum(axis=self.baseaxes, keepdims=True))
         else:
-            return self._constructor(expand_dims(nansum(self.values, axis=self.baseaxes), axis=self.baseaxes))
+            return self._constructor(expand_dims(nansum(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
 
     def nanmax(self):
         """
@@ -283,7 +283,7 @@ class Series(Data):
         if self.mode == 'spark':
             return self._constructor(self.values.nanmax(axis=self.baseaxes, keepdims=True))
         else:
-            return self._constructor(expand_dims(nanmax(self.values, axis=self.baseaxes), axis=self.baseaxes))
+            return self._constructor(expand_dims(nanmax(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
 
     def nanmin(self):
         """
@@ -292,7 +292,7 @@ class Series(Data):
         if self.mode == 'spark':
             return self._constructor(self.values.nanmin(axis=self.baseaxes, keepdims=True))
         else:
-            return self._constructor(expand_dims(nanmin(self.values, axis=self.baseaxes), axis=self.baseaxes))
+            return self._constructor(expand_dims(nanmin(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
 
     def between(self, left, right):
         """
