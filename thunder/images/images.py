@@ -1,56 +1,8 @@
 import logging
 from numpy import ndarray, arange, amax, amin, size, asarray, random, prod, \
-    apply_along_axis, nanmean, nanstd, nanmin, nanmax, nansum, nanmedian, inf, subtract
-
-from itertools import product
-
+    apply_along_axis, nanmean, nanstd, nanmin, nanmax, nansum, nanvar, expand_dims
 from ..base import Data
 
-class Dimensions(object):
-    """ Class for estimating and storing dimensions of data based on the keys """
-
-    def __init__(self, values=[], n=3):
-        self.min = tuple(map(lambda i: inf, range(0, n)))
-        self.max = tuple(map(lambda i: -inf, range(0, n)))
-
-        for v in values:
-            self.merge(v)
-
-    def merge(self, value):
-        self.min = tuple(map(min, self.min, value))
-        self.max = tuple(map(max, self.max, value))
-        return self
-
-    def mergeDims(self, other):
-        self.min = tuple(map(min, self.min, other.min))
-        self.max = tuple(map(max, self.max, other.max))
-        return self
-
-    @property
-    def count(self):
-        return tuple(map(lambda x: x + 1, map(subtract, self.max, self.min)))
-
-    @classmethod
-    def fromTuple(cls, tup):
-        """ Generates a Dimensions object from the passed tuple. """
-        mx = [v-1 for v in tup]
-        mn = [0] * len(tup)
-        return cls(values=[mx, mn], n=len(tup))
-
-    def __str__(self):
-        return str(self.count)
-
-    def __repr__(self):
-        return str(self.count)
-
-    def __len__(self):
-        return len(self.min)
-
-    def __iter__(self):
-        return iter(self.count)
-
-    def __getitem__(self, item):
-        return self.count[item]
 
 class Images(Data):
     """
@@ -290,54 +242,59 @@ class Images(Data):
         """
         return self._constructor(self.values.min(axis=0, keepdims=True))
 
-
     def nanmean(self):
         """
         Compute the mean across images ignoring the NaNs
         """
-        return self._constructor(self.values.nanmean(axis=0, keepdims=True))
-
-    def nancount(self):
-        """
-        Compute the mean across images ignoring the NaNs
-        """
-        return self._constructor(self.values.nancount(axis=0, keepdims=True))
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmean(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmean(self.values, axis=0), axis=0))
 
     def nanmax(self):
         """
         Compute the max across images ignoring the NaNs
         """
-        return self._constructor(self.values.nanmax(axis=0, keepdims=True))
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmax(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmax(self.values, axis=0), axis=0))
 
     def nanmin(self):
         """
         Compute the min across images ignoring the NaNs
         """
-        return self._constructor(self.values.nanmin(axis=0, keepdims=True))
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmin(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmin(self.values, axis=0), axis=0))
 
     def nanstd(self):
         """
         Compute the standard deviation across images ignoring the NaNs
         """
-        return self._constructor(self.values.nanstd(axis=0, keepdims=True))
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmstd(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanstd(self.values, axis=0), axis=0))
 
     def nansum(self):
         """
         Compute the sum across images ignoring the NaNs
         """
-        return self._constructor(self.values.nansum(axis=0, keepdims=True))
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmsum(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nansum(self.values, axis=0), axis=0))
 
-    def nanvariance(self):
+    def nanvar(self):
         """
         Compute the sum across images ignoring the NaNs
         """
-        return self._constructor(self.values.nanvar(axis=0, keepdims=True))
-
-    def nanmedian(self):
-        """
-        Compute the median across images ignoring the NaNs
-        """
-        return self._constructor(nanmedian(self.values, axis=0))
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanvar(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanvar(self.values, axis=0), axis=0))
 
     def squeeze(self):
         """
