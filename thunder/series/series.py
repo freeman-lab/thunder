@@ -170,7 +170,7 @@ class Series(Data):
 
         return self._constructor(result, index=self.index)
 
-    def map(self, func, index=None, with_keys=False):
+    def map(self, func, index=None, dtype=None, with_keys=False):
         """
         Map an array -> array function over each record.
 
@@ -182,11 +182,14 @@ class Series(Data):
         index : array-like, optional, default = None
             If known, the index to be used following function evaluation.
 
+        dtype : numpy.dtype, optional, default = None
+            If known, the type of the data following function evaluation.
+
         with_keys : boolean, optional, default = False
             If true, function should be of both tuple indices and series values.
         """
         value_shape = len(index) if index is not None else None
-        new = self._map(func, axis=self.baseaxes, value_shape=value_shape, with_keys=with_keys)
+        new = self._map(func, axis=self.baseaxes, value_shape=value_shape, dtype=dtype, with_keys=with_keys)
         return self._constructor(new.values, index=index, labels=self.labels)
 
     def reduce(self, func):

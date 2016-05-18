@@ -6,75 +6,79 @@ from ..base import Base
 import logging
 
 
-class LocalBlocks:
+class LocalChunks:
     """
-    Light-weight class for a blocked local ndarray.
-
+    Simple helper class for a local chunked ndarray.
     """
 
     def __init__(self, values, shape, plan, dtype=None, padding=None):
         """
-        Create a blocked ndarray from the required values
+        Create a chunked ndarray.
 
         Parameters
         ----------
         values : ndarray (dtype 'object') or ndarrays
-            Array containing all of blocks
+            Array containing all the chunks.
 
         shape : tuple
-            Shape of the full unblocked array
+            Shape of the full unchunked array.
 
         plan : tuple
-            Shape of each block (excluding edge effects)
+            Shape of each chunk (excluding edge effects).
 
-        dtype : NumPy dtype, optional, default = None
-            dtype of blocks. If not given, will be inferred from first block
+        dtype : numpy dtype, optional, default = None
+            dtype of chunks. If not given, will be inferred from first chunk.
 
+        padding: tuple, optional, default = None
+            amount of padding in each dimension to include in each block
         """
         self.values = values
         self.shape = shape
         self.plan = plan
+        self.dtype = dtype
         self.padding = padding
-        if dtype is None:
+
+        if self.dtype is None:
             self.dtype = self.first.dtype
-        if dtype is None:
-            print("NONE!")
+
+        if self.padding is None:
+            self.padding = len(self.shape)*(0,)
 
     @property
     def first(self):
         """
-        first block
+        First chunk
         """
         return self.values[tuple(zeros(len(self.values.shape)))]
 
     @staticmethod
-    def block(arr, plan, padding=None):
+    def chunk(arr, plan, padding=None):
         """
-        Created a blocks array from a full array and a blocking plan
+        Created a chunked array from a full array and a chunking plan.
 
         Parameters
         ----------
         array : ndarray
-            Array that will be broken into blocks
+            Array that will be broken into chunks
 
         plan : tuple
-            Shape of desired blocks (up to edge effects)
+            Shape of desired chunks (up to edge effects)
 
         padding : tuple or int
-            Amount of padding along each dimensions for blocks. If an int, then
+            Amount of padding along each dimensions for chunks. If an int, then
             the same amount of padding is used for all dimensions
 
         Returns
         -------
-        LocalBlocks
+        LocalChunks
         """
 
         if padding is None:
             pad = arr.ndim*(0,)
         elif isinstance(padding, int):
-            pad = arr.ndim*(padding,)
+            pad = (0,) + (arr.ndim-1)*(padding,)
         else:
-            pad = padding
+            pad = (0,) + padding
 
         shape = arr.shape
 
@@ -86,8 +90,12 @@ class LocalBlocks:
             raise ValueError("Padding sizes %s cannot exceed chunk sizes %s along any axis"
                              % (tuple(pad), tuple(plan)))
 
+        def rectify(x):
+            x[x<0] = 0
+            return x
+
         breaks = [r_[arange(0, n, s), n] for n, s in zip(shape, plan)]
-        limits = [zip(array(b[:-1])-p, array(b[1:])+p) for b, p in zip(breaks, pad)]
+        limits = [zip(rectify(b[:-1]-p), b[1:]+p) for b, p in zip(breaks, pad)]
         slices = product(*[[slice(x[0], x[1]) for x in l] for l in limits])
         vals = [arr[s] for s in slices]
         newarr = empty(len(vals), dtype=object)
@@ -95,30 +103,30 @@ class LocalBlocks:
             newarr[i] = vals[i]
         newsize = [b.shape[0]-1 for b in breaks]
         newarr = newarr.reshape(*newsize)
-        return LocalBlocks(newarr, shape, plan, dtype=arr.dtype, padding=padding)
+        return LocalChunks(newarr, shape, plan, dtype=arr.dtype, padding=pad)
 
-    def unblock(self):
+    def unchunk(self):
         """
-        Reconstitute the blocked array back into a full ndarray
+        Reconstitute the chunked array back into a full ndarray.
 
         Returns
         -------
         ndarray
         """
-        if self.padding is not None:
+        if self.padding != len(self.shape)*(0,):
             shape = self.values.shape
             arr = empty(shape, dtype=object)
-            for inds in product([arange(s) for s in shape]):
+            for inds in product(*[arange(s) for s in shape]):
                 slices = []
                 for i, p, n in zip(inds, self.padding, shape):
-                    start = None if i == 0 else p
-                    stop = None if i == n else -p
-                    slices += slice(start, stop, None)
-                arr[inds] = arr[inds][slices]
+                    start = None if (i == 0 or p == 0) else p
+                    stop = None if (i == n-1 or p == 0) else -p
+                    slices.append(slice(start, stop, None))
+                arr[inds] = self.values[inds][tuple(slices)]
         else:
             arr = self.values
 
-        return allstack(self.values.tolist())
+        return allstack(arr.tolist())
 
     def map(self, func, value_shape=None, dtype=None):
 
@@ -139,7 +147,7 @@ class LocalBlocks:
 
         # check that no dimensions are dropped
         if len(value_shape) != len(self.plan):
-            raise NotImplementedError('map on ChunkedArray cannot drop dimensions')
+            raise NotImplementedError('map on chunked array cannot drop dimensions')
 
         # check that chunked dimensions did not change shape
         if any([value_shape[i] != self.plan[i] for i in blocked_dims]):
@@ -152,4 +160,13 @@ class LocalBlocks:
         mapped = empty(c, dtype=object)
         for i, a in enumerate(self.values.flatten()):
             mapped[i] = func(a)
-        return LocalBlocks(mapped.reshape(self.values.shape), newshape, value_shape, dtype)
+        return LocalChunks(mapped.reshape(self.values.shape), newshape, value_shape, dtype)
+
+    def map_generic(self, func):
+
+        shape = self.values.shape
+        n = prod(shape)
+        arr = empty(n, dtype=object)
+        for i, x in enumerate(self.values.flatten()):
+            arr[i] = func(x)
+        return arr.reshape(shape)

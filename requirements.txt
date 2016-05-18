@@ -2,4 +2,4 @@ numpy
 scipy
 scikit-image
 boto
-bolt-python >= 0.5.1
+bolt-python >= 0.6.0

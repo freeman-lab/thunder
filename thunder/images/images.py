@@ -1,11 +1,10 @@
 import logging
 from numpy import ndarray, arange, amax, amin, size, asarray, random, prod, \
     apply_along_axis, nanmean, nanstd, nanmin, nanmax, nansum, nanmedian, inf, subtract
-	
+
 from itertools import product
 
 from ..base import Data
-from ..blocks.local import LocalBlocks
 
 class Dimensions(object):
     """ Class for estimating and storing dimensions of data based on the keys """
@@ -108,7 +107,7 @@ class Images(Data):
         if self.mode == 'spark':
             return self.values.tordd().values().first()
 
-    def toblocks(self, size='150'):
+    def toblocks(self, size='150', padding=None):
         """
         Convert to blocks which represent subdivisions of the images data.
 
@@ -118,19 +117,24 @@ class Images(Data):
             String interpreted as memory size (in megabytes, e.g. '64').
             Tuple of ints interpreted as 'pixels per dimension'.
             Only valid in spark mode.
+
+        padding : tuple or int
+            Amount of padding along each dimensions for blocks. If an int, then
+            the same amount of padding is used for all dimensions
         """
         from thunder.blocks.blocks import Blocks
+        from thunder.blocks.local import LocalChunks
 
         if self.mode == 'spark':
-            blocks = self.values.chunk(size).keys_to_values((0,))
+            chunks = self.values.chunk(size, padding=padding).keys_to_values((0,))
 
         if self.mode == 'local':
             if isinstance(size, str):
                 raise ValueError("block size must be a tuple for local mode")
             plan = (self.shape[0],) + tuple(size)
-            blocks = LocalBlocks.block(self.values, plan)
+            chunks = LocalChunks.chunk(self.values, plan, padding=padding)
 
-        return Blocks(blocks)
+        return Blocks(chunks)
 
     def toseries(self, size='150'):
         """
@@ -219,9 +223,7 @@ class Images(Data):
 
         return self._constructor(result)
 
-
-
-    def map(self, func, dims=None, with_keys=False):
+    def map(self, func, dims=None, dtype=None, with_keys=False):
         """
         Map an array -> array function over each image.
 
@@ -233,10 +235,13 @@ class Images(Data):
         dims : tuple, optional, default = None
             If known, the dimensions of the data following function evaluation.
 
+        dtype : numpy.dtype, optional, default = None
+            If known, the type of the data following function evaluation.
+
         with_keys : boolean, optional, default = False
             If true, function should be of both tuple indices and values.
         """
-        return self._map(func, axis=0, value_shape=dims, with_keys=with_keys)
+        return self._map(func, axis=0, value_shape=dims, dtype=dtype, with_keys=with_keys)
 
     def reduce(self, func):
         """
@@ -619,7 +624,7 @@ class Images(Data):
         from thunder.images.writers import tobinary
         tobinary(self, path, prefix=prefix, overwrite=overwrite)
 
-    def map_as_series(self, func, value_size=None, block_size='150'):
+    def map_as_series(self, func, value_size=None, dtype=None, block_size='150'):
         """
         Efficiently apply a function to images as series data.
 
@@ -639,6 +644,10 @@ class Images(Data):
             func. If not supplied, will be automatically inferred for an extra
             computational cost.
 
+        dtype : str, optional, default = None
+            dtype of one-dimensional ndarray resulting from application of func.
+            If not supplied it will be automatically inferred for an extra computational cost.
+
         block_size : str, or tuple of block size per dimension, optional, default = '150'
             String interpreted as memory size (in megabytes e.g. '64'). Tuple of
             ints interpreted as 'pixels per dimension'.
@@ -654,4 +663,4 @@ class Images(Data):
         def f(block):
             return apply_along_axis(func, 0, block)
 
-        return blocks.map(f, dims=dims).toimages()
+        return blocks.map(f, dims=dims, dtype=dtype).toimages()

@@ -1,5 +1,5 @@
 import pytest
-from numpy import arange, allclose, array, mean, apply_along_axis
+from numpy import arange, allclose, array, mean, apply_along_axis, float64
 
 from thunder.images.readers import fromlist, fromarray
 from thunder.images.images import Images
@@ -12,6 +12,8 @@ pytestmark = pytest.mark.usefixtures("eng")
 def test_map(eng):
     data = fromlist([arange(6).reshape((2, 3))], engine=eng)
     assert allclose(data.map(lambda x: x + 1).toarray(), [[1, 2, 3], [4, 5, 6]])
+    assert data.map(lambda x: 1.0*x, dtype=float64).dtype == float64
+    assert data.map(lambda x: 1.0*x).dtype == float64
 
 
 def test_map_singleton(eng):

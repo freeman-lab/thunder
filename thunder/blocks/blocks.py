@@ -10,7 +10,7 @@ class Blocks(Base):
 
     Subclasses of Blocks will be returned by an images.toBlocks() call.
     """
-    _metadata = Base._metadata + ['blockshape']
+    _metadata = Base._metadata + ['blockshape', 'padding']
 
     def __init__(self, values):
         super(Blocks, self).__init__(values)
@@ -22,6 +22,10 @@ class Blocks(Base):
     @property
     def blockshape(self):
         return tuple(self.values.plan)
+
+    @property
+    def padding(self):
+        return tuple(self.values.padding)
 
     def count(self):
         """
@@ -40,7 +44,7 @@ class Blocks(Base):
         Collect the blocks in a list
         """
         if self.mode == 'spark':
-            return self.values.tordd().values().collect()
+            return self.values.tordd().sortByKey().values().collect()
 
         if self.mode == 'local':
             return self.values.values.flatten().tolist()
@@ -51,6 +55,12 @@ class Blocks(Base):
         """
         mapped = self.values.map(func, value_shape=dims, dtype=dtype)
         return self._constructor(mapped).__finalize__(self, noprop=('dtype',))
+
+    def map_generic(self, func):
+        """
+        Apply an arbitrary array -> object function to each blocks.
+        """
+        return self.values.map_generic(func)[0] 
 
     def first(self):
         """
@@ -72,7 +82,7 @@ class Blocks(Base):
             values = self.values.values_to_keys((0,)).unchunk()
 
         if self.mode == 'local':
-            values = self.values.unblock()
+            values = self.values.unchunk()
 
         return Images(values)
 
@@ -86,7 +96,17 @@ class Blocks(Base):
             values = self.values.values_to_keys(tuple(range(1, len(self.shape)))).unchunk()
 
         if self.mode == 'local':
-            values = self.values.unblock()
+            values = self.values.unchunk()
             values = rollaxis(values, 0, values.ndim)
 
         return Series(values)
+
+    def toarray(self):
+        """
+        Convert blocks to local ndarray
+        """
+        if self.mode == 'spark':
+            return self.values.unchunk().toarray()
+
+        if self.mode == 'local':
+            return self.values.unchunk()
