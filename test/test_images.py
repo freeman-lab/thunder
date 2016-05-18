@@ -1,6 +1,6 @@
 import pytest
-from numpy import arange, allclose, array, mean, apply_along_axis, float64, nanmean, nan, nansum, nanvar,\
-    nanmin, nanmax, nanstd
+from numpy import arange, allclose, array, mean, apply_along_axis, float64, \
+    nanmean, nan, nansum, nanvar, nanmin, nanmax, nanstd
 
 from thunder.images.readers import fromlist
 from thunder.images.images import Images
