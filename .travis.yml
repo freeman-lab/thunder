@@ -26,6 +26,7 @@ install:
   - source activate test
   - pip install .
   - pip install -r requirements-dev.txt
+  - pip install py4j
   - wget http://d3kbcqa49mib13.cloudfront.net/spark-1.6.0-bin-hadoop2.6.tgz
   - tar -xzf spark-1.6.0-bin-hadoop2.6.tgz
 
