@@ -118,7 +118,7 @@ class Images(Data):
             return Series(self.values.swap((0,), tuple(range(n)), size=chunk_size), index=index)
 
         if self.mode == 'local':
-            return Series(self.values.transpose(tuple(range(1, n+1)) + (0,)), index=index)
+            return Series(self.values.transpose(tuple(range(1, n + 1)) + (0,)), index=index)
 
     def tolocal(self):
         """
@@ -270,7 +270,7 @@ class Images(Data):
         """
         if axis >= size(self.dims):
             raise Exception('Axis for projection (%s) exceeds '
-                            'image dimensions (%s-%s)' % (axis, 0, size(self.dims)-1))
+                            'image dimensions (%s-%s)' % (axis, 0, size(self.dims) - 1))
 
         newdims = list(self.dims)
         del newdims[axis]
@@ -289,7 +289,7 @@ class Images(Data):
         """
         if axis >= size(self.dims):
             raise Exception('Axis for projection (%s) exceeds '
-                            'image dimensions (%s-%s)' % (axis, 0, size(self.dims)-1))
+                            'image dimensions (%s-%s)' % (axis, 0, size(self.dims) - 1))
 
         newdims = list(self.dims)
         del newdims[axis]
@@ -322,6 +322,34 @@ class Images(Data):
         newdims = tuple([roundup(dims[i], factor[i]) for i in range(ndims)])
 
         return self.map(lambda v: v[slices], dims=newdims)
+
+    def decimate(self, factor):
+        """
+        Decimate images by an integer factor.
+
+        Parameters
+        ----------
+        factor : positive int
+            Number of images to average together. Corresponds to running mean filtering
+            with window length 'factor' followed by subsampling by 'factor'
+        """
+        if self.mode == 'spark':
+            from thunder.images.readers import fromrdd
+            decimated = self.tordd().map(lambda k, v: (int(k[0]) / factor, (v, 1)))
+            decimated = decimated.reduceByKey(lambda x, y: (x[0] + y[0], x[1] + y[1]))
+            decimated = decimated.map(lambda k, v: (k, (v[0] / float(v[1]))))
+            return fromrdd(decimated)
+        else:
+            from thunder.images.readers import fromarray
+            from numpy import vstack
+            T = self.shape[0]
+            decimated = (self.values[:T - T % factor]
+                         .reshape((T // factor, factor) + self.shape[1:]).mean(1))
+            if T % factor:
+                remainder = self.values[-T % factor:].mean(0).reshape((1,) + self.shape[1:])
+                return fromarray(vstack([decimated, remainder]))
+            else:
+                return fromarray(decimated)
 
     def gaussian_filter(self, sigma=2, order=0):
         """

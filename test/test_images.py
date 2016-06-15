@@ -98,6 +98,13 @@ def test_subsample(eng):
     assert allclose(vals, truth)
 
 
+def test_decimate(eng):
+    data = fromlist(list(arange(24).reshape((4, 3, 2))), engine=eng)
+    vals = data.decimate(2).toarray()
+    truth = [arange(3, 9).reshape((3, 2)), arange(15, 21).reshape((3, 2))]
+    assert allclose(vals, truth)
+
+
 def test_median_filter_2d(eng):
     data = fromlist([arange(24).reshape((4, 6))], engine=eng)
     assert data.median_filter(2).toarray().shape == (4, 6)
