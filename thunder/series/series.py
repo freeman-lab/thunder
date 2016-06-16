@@ -170,28 +170,6 @@ class Series(Data):
 
         return self._constructor(result, index=self.index)
 
-    def map(self, func, index=None, dtype=None, with_keys=False):
-        """
-        Map an array -> array function over each record.
-
-        Parameters
-        ----------
-        func : function
-            A function of a single record.
-
-        index : array-like, optional, default = None
-            If known, the index to be used following function evaluation.
-
-        dtype : numpy.dtype, optional, default = None
-            If known, the type of the data following function evaluation.
-
-        with_keys : boolean, optional, default = False
-            If true, function should be of both tuple indices and series values.
-        """
-        value_shape = len(index) if index is not None else None
-        new = self._map(func, axis=self.baseaxes, value_shape=value_shape, dtype=dtype, with_keys=with_keys)
-        return self._constructor(new.values, index=index, labels=self.labels)
-
     def reduce(self, func):
         """
         Reduce a function over records.
@@ -298,19 +276,19 @@ class Series(Data):
 
         # use fast logical indexing to get the new values
         subinds = where([crit(i) for i in index])
-        new = self.map(lambda x: x[subinds], index=newindex)
+        new = self.map(lambda x: x[subinds])
 
         # if singleton, need to check whether it's an array or a scalar/int
         # if array, recompute a new set of indices
         if len(newindex) == 1:
-            new = new.map(lambda x: x[0], index=newindex)
+            new = new.map(lambda x: x[0])
             val = new.first()
             if size(val) == 1:
                 newindex = [newindex[0]]
             else:
                 newindex = arange(0, size(val))
 
-        new._index = newindex
+        new.index = newindex
 
         return new
 
@@ -394,14 +372,18 @@ class Series(Data):
                 raise ValueError("Length of signal '%g' does not match record length '%g'"
                                  % (size(s), self.shape[-1]))
 
-            return self.map(lambda x: corrcoef(x, s)[0, 1], index=[1])
+            result = self.map(lambda x: corrcoef(x, s)[0, 1])
+            result.index = [1]
+            return result
 
         elif s.ndim == 2:
             if s.shape[1] != self.shape[-1]:
                 raise ValueError("Length of signal '%g' does not match record length '%g'"
                                  % (s.shape[1], self.shape[-1]))
             newindex = arange(0, s.shape[0])
-            return self.map(lambda x: array([corrcoef(x, y)[0, 1] for y in s]), index=newindex)
+            result = self.map(lambda x: array([corrcoef(x, y)[0, 1] for y in s]))
+            result.index = newindex
+            return result
 
         else:
             raise Exception('Signal to correlate with must have 1 or 2 dimensions')
@@ -438,8 +420,7 @@ class Series(Data):
         """
         self._check_panel(length)
         func = lambda v: v.reshape(-1, length).mean(axis=0)
-        newindex = arange(length)
-        return self.map(func, index=newindex)
+        return self.map(func)
 
     def _makemasks(self, index=None, level=0):
         """
@@ -491,8 +472,9 @@ class Series(Data):
         newindex = array(ind)
         if len(newindex[0]) == 1:
             newindex = ravel(newindex)
-        return self.map(lambda v: asarray([array(function(v[masks[x]])) for x in range(nMasks)]),
-                        index=newindex)
+        result = self.map(lambda v: asarray([array(function(v[masks[x]])) for x in range(nMasks)]))
+        result.index = newindex
+        return result
 
     def select_by_index(self, val, level=0, squeeze=False, filter=False, return_mask=False):
         """
@@ -585,7 +567,8 @@ class Series(Data):
         elif len(indFinal[1]) == 0:
             indFinal = arange(sum(final_mask))
 
-        result = self.map(lambda v: v[final_mask], index=indFinal)
+        result = self.map(lambda v: v[final_mask])
+        result.index = indFinal
 
         if return_mask:
             return result, final_mask
@@ -612,8 +595,10 @@ class Series(Data):
             Specifies the levels of the multi-index to use when determining unique index values.
             If only a single level is desired, can be an int.
         """
-        result = self._map_by_index(function, level=level)
-        return result.map(lambda v: array(v), index=result.index)
+        arr = self._map_by_index(function, level=level)
+        result = arr.map(lambda v: array(v))
+        result.index = arr.index
+        return result
 
     def stat_by_index(self, stat, level=0):
         """
@@ -760,16 +745,19 @@ class Series(Data):
             raise NotImplementedError
 
         if self.mode == 'local' and isinstance(other, (ndarray, ScalarType)):
-            return self._constructor(dot(self.values, other), index=index)
+            result = self._constructor(dot(self.values, other))
 
         if self.mode == 'local' and isinstance(other, Series):
-            return self._constructor(dot(self.values, other.values), index=index)
+            result =  self._constructor(dot(self.values, other.values))
 
         if self.mode == 'spark' and isinstance(other, (ndarray, ScalarType)):
-            return self.map(lambda x: dot(x, other), index=index)
+            result = self.map(lambda x: dot(x, other))
 
         if self.mode == 'spark' and isinstance(other, Series):
-            return self.map(lambda x: dot(x, other.values), index=index)
+            result = self.map(lambda x: dot(x, other.values))
+
+        result.index = index
+        return result
 
     def _makewindows(self, indices, window):
         """
@@ -814,8 +802,7 @@ class Series(Data):
             Window size
         """
         masks = self._makewindows(indices, window)
-        newindex = arange(0, len(masks[0]))
-        return self.map(lambda x: mean([x[m] for m in masks], axis=0), index=newindex)
+        return self.map(lambda x: mean([x[m] for m in masks], axis=0))
 
     def subsample(self, sampleFactor=2):
         """
@@ -860,7 +847,9 @@ class Series(Data):
                             'must be less than half the series duration' % freq)
 
         index = ['coherence', 'phase']
-        return self.map(lambda x: get(x, freq), index=index)
+        result = self.map(lambda x: get(x, freq))
+        result.index = index
+        return result
 
     def convolve(self, signal, mode='full'):
         """
@@ -894,7 +883,9 @@ class Series(Data):
             newmax = n+m-1
         newindex = arange(0, newmax)
 
-        return self.map(lambda x: convolve(x, signal, mode), index=newindex)
+        result = self.map(lambda x: convolve(x, signal, mode))
+        result.index = newindex
+        return result
 
     def crosscorr(self, signal, lag=0):
         """
@@ -945,7 +936,9 @@ class Series(Data):
                 b = dot(s, y)
             return b
 
-        return self.map(lambda x: get(x, s), index=shifts)
+        result =  self.map(lambda x: get(x, s))
+        result.index = shifts
+        return result
 
     def detrend(self, method='linear', order=5):
         """

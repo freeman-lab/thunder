@@ -185,26 +185,6 @@ class Images(Data):
 
         return self._constructor(result)
 
-    def map(self, func, dims=None, dtype=None, with_keys=False):
-        """
-        Map an array -> array function over each image.
-
-        Parameters
-        ----------
-        func : function
-            The function to apply in the map.
-
-        dims : tuple, optional, default = None
-            If known, the dimensions of the data following function evaluation.
-
-        dtype : numpy.dtype, optional, default = None
-            If known, the type of the data following function evaluation.
-
-        with_keys : boolean, optional, default = False
-            If true, function should be of both tuple indices and values.
-        """
-        return self._map(func, axis=0, value_shape=dims, dtype=dtype, with_keys=with_keys)
-
     def reduce(self, func):
         """
         Reduce a function over images.
@@ -321,7 +301,7 @@ class Images(Data):
         slices = [slice(0, dims[i], factor[i]) for i in range(ndims)]
         newdims = tuple([roundup(dims[i], factor[i]) for i in range(ndims)])
 
-        return self.map(lambda v: v[slices], dims=newdims)
+        return self.map(lambda v: v[slices], value_shape=newdims)
 
     def gaussian_filter(self, sigma=2, order=0):
         """
@@ -342,7 +322,7 @@ class Images(Data):
         """
         from scipy.ndimage.filters import gaussian_filter
 
-        return self.map(lambda v: gaussian_filter(v, sigma, order), dims=self.dims)
+        return self.map(lambda v: gaussian_filter(v, sigma, order), value_shape=self.dims)
 
     def uniform_filter(self, size=2):
         """
@@ -415,7 +395,7 @@ class Images(Data):
         else:
             filter_ = lambda x: func(x, size)
 
-        return self.map(lambda v: filter_(v), dims=self.dims)
+        return self.map(lambda v: filter_(v), value_shape=self.dims)
 
     def localcorr(self, size=2):
         """
@@ -471,7 +451,7 @@ class Images(Data):
                 raise Exception('Cannot subtract image with dimensions %s '
                                 'from images with dimension %s' % (str(val.shape), str(self.dims)))
 
-        return self.map(lambda x: x - val, dims=self.dims)
+        return self.map(lambda x: x - val, value_shape=self.dims)
 
     def topng(self, path, prefix='image', overwrite=False):
         """

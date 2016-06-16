@@ -402,7 +402,7 @@ class Data(Base):
 
         return self._constructor(filtered, labels=newlabels).__finalize__(self, noprop=('labels',))
 
-    def _map(self, func, axis=(0,), value_shape=None, dtype=None, with_keys=False):
+    def map(self, func, value_shape=None, dtype=None, with_keys=False):
         """
         Apply an array -> array function across an axis.
 
@@ -415,9 +415,6 @@ class Data(Base):
             Function of a single array to apply. If with_keys=True,
             function should be of a (tuple, array) pair.
 
-        axis : tuple or int, optional, default=(0,)
-            Axis or multiple axes to apply function along.
-
         value_shape : tuple, optional, default=None
             Known shape of values resulting from operation. Only
             valid in spark mode.
@@ -429,6 +426,8 @@ class Data(Base):
         with_keys : bool, optional, default=False
             Include keys as an argument to the function
         """
+        axis = self.baseaxes
+
         if self.mode == 'local':
             axes = sorted(tupleize(axis))
             key_shape = [self.shape[axis] for axis in axes]
