@@ -2,6 +2,8 @@ import itertools
 import logging
 from io import BytesIO
 from numpy import frombuffer, prod, random, asarray, expand_dims
+from gdalconst import *
+
 
 from ..utils import check_spark, check_options
 spark = check_spark()
@@ -357,15 +359,20 @@ def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=Non
         be discarded and a warning will be shown. If False, it will raise an error
     """
     import skimage.external.tifffile as tifffile
-
+    from osgeo import gdal
+    
     if nplanes is not None and nplanes <= 0:
         raise ValueError('nplanes must be positive if passed, got %d' % nplanes)
 
     def getarray(idx_buffer_filename):
         idx, buf, fname = idx_buffer_filename
         fbuf = BytesIO(buf)
-        tfh = tifffile.TiffFile(fbuf)
-        ary = tfh.asarray()
+        fbuf.seek(0)
+        gdal.FileFromMemBuffer('/vsimem/tiffinmem', fbuf.read(-1))
+        raster = gdal.Open('/vsimem/tiffinmem', GA_ReadOnly)
+        ary = raster.ReadAsArray()
+        raster = None
+        gdal.Unlink('/vsimem/tiffinmem')
         pageCount = ary.shape[0]
         if nplanes is not None:
             extra = pageCount % nplanes
@@ -378,7 +385,6 @@ def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=Non
             values = [ary[i:(i+nplanes)] for i in range(0, pageCount, nplanes)]
         else:
             values = [ary]
-        tfh.close()
 
         if ary.ndim == 3:
             values = [val.squeeze() for val in values]
