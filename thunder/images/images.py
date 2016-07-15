@@ -1,6 +1,7 @@
 import logging
 from numpy import ndarray, arange, amax, amin, size, asarray, random, prod, \
     apply_along_axis
+from itertools import product
 
 from ..base import Data
 
@@ -34,10 +35,6 @@ class Images(Data):
     def _constructor(self):
         return Images
 
-    @property
-    def dims(self):
-        return self.shape[1:]
-
     def count(self):
         """
         Count the number of images.
@@ -58,33 +55,40 @@ class Images(Data):
             return self.values[0]
 
         if self.mode == 'spark':
-            return self.values.tordd().values().first()
+            return self.values.first().toarray()
 
-    def toblocks(self, size='150'):
+    def toblocks(self, chunk_size='auto', padding=None):
         """
         Convert to blocks which represent subdivisions of the images data.
 
         Parameters
         ----------
-        size : str, or tuple of block size per dimension,
-            String interpreted as memory size (in megabytes, e.g. '64'). 
-            Tuple of ints interpreted as 'pixels per dimension'. 
-            Only valid in spark mode.
+        chunk_size : str or tuple, size of image chunk used during conversion, default = 'auto'
+            String interpreted as memory size (in kilobytes, e.g. '64').
+            The exception is the string 'auto'. In spark mode, 'auto' will choose a chunk size to make the
+            resulting blocks ~100 MB in size. In local mode, 'auto' will create a single block.
+            Tuple of ints interpreted as 'pixels per dimension'.
+
+        padding : tuple or int
+            Amount of padding along each dimensions for blocks. If an int, then
+            the same amount of padding is used for all dimensions
         """
         from thunder.blocks.blocks import Blocks
+        from thunder.blocks.local import LocalChunks
 
         if self.mode == 'spark':
-            blocks = self.values.chunk(size).keys_to_values((0,))
+            if chunk_size is 'auto':
+                chunk_size = str(int(100000.0/self.shape[0]))
+            chunks = self.values.chunk(chunk_size, padding=padding).keys_to_values((0,))
 
         if self.mode == 'local':
-            if size != '150':
-                logger = logging.getLogger('thunder')
-                logger.warn('size has no meaning in Images.toblocks in local mode')
-            blocks = self.values
+            if chunk_size is 'auto':
+                chunk_size = self.shape[1:]
+            chunks = LocalChunks.chunk(self.values, chunk_size, padding=padding)
 
-        return Blocks(blocks)
+        return Blocks(chunks)
 
-    def toseries(self, size='150'):
+    def toseries(self, chunk_size='auto'):
         """
         Converts to series data.
 
@@ -92,16 +96,22 @@ class Images(Data):
 
         Parameters
         ----------
-        size : string memory size, optional, default = '150M'
-            String interpreted as memory size (e.g. '64M').
+        chunk_size : str or tuple, size of image chunk used during conversion, default = 'auto'
+            String interpreted as memory size (in kilobytes, e.g. '64').
+            The exception is the string 'auto', which will choose a chunk size to make the
+            resulting blocks ~100 MB in size. Tuple of ints interpreted as 'pixels per dimension'.
+            Only valid in spark mode.
         """
         from thunder.series.series import Series
+
+        if chunk_size is 'auto':
+            chunk_size = str(int(100000.0/self.shape[0]))
 
         n = len(self.shape) - 1
         index = arange(self.shape[0])
 
         if self.mode == 'spark':
-            return Series(self.values.swap((0,), tuple(range(n)), size=size), index=index)
+            return Series(self.values.swap((0,), tuple(range(n)), size=chunk_size), index=index)
 
         if self.mode == 'local':
             return Series(self.values.transpose(tuple(range(1, n+1)) + (0,)), index=index)
@@ -171,23 +181,6 @@ class Images(Data):
 
         return self._constructor(result)
 
-    def map(self, func, dims=None, with_keys=False):
-        """
-        Map an array -> array function over each image.
-
-        Parameters
-        ----------
-        func : function
-            The function to apply in the map.
-
-        dims : tuple, optional, default = None
-            If known, the dimensions of the data following function evaluation.
-
-        with_keys : boolean, optional, default = False
-            If true, function should be of both tuple indices and values.
-        """
-        return self._map(func, axis=0, value_shape=dims, with_keys=with_keys)
-
     def reduce(self, func):
         """
         Reduce a function over images.
@@ -251,13 +244,13 @@ class Images(Data):
         axis : int, optional, default = 2
             Which axis to compute projection along.
         """
-        if axis >= size(self.dims):
+        if axis >= size(self.value_shape):
             raise Exception('Axis for projection (%s) exceeds '
-                            'image dimensions (%s-%s)' % (axis, 0, size(self.dims)-1))
+                            'image dimensions (%s-%s)' % (axis, 0, size(self.value_shape)-1))
 
-        newdims = list(self.dims)
-        del newdims[axis]
-        return self.map(lambda x: amax(x, axis), dims=newdims)
+        new_value_shape = list(self.value_shape)
+        del new_value_shape[axis]
+        return self.map(lambda x: amax(x, axis), value_shape=new_value_shape)
 
     def max_min_projection(self, axis=2):
         """
@@ -270,13 +263,13 @@ class Images(Data):
         axis : int, optional, default = 2
             Which axis to compute projection along.
         """
-        if axis >= size(self.dims):
+        if axis >= size(self.value_shape):
             raise Exception('Axis for projection (%s) exceeds '
-                            'image dimensions (%s-%s)' % (axis, 0, size(self.dims)-1))
+                            'image dimensions (%s-%s)' % (axis, 0, size(self.value_shape)-1))
 
-        newdims = list(self.dims)
-        del newdims[axis]
-        return self.map(lambda x: amax(x, axis) + amin(x, axis), dims=newdims)
+        new_value_shape = list(self.value_shape)
+        del new_value_shape[axis]
+        return self.map(lambda x: amax(x, axis) + amin(x, axis), value_shape=new_value_shape)
 
     def subsample(self, factor):
         """
@@ -285,12 +278,12 @@ class Images(Data):
         Parameters
         ----------
         factor : positive int or tuple of positive ints
-            Stride to use in subsampling. If a single int is passed, 
-            each dimension of the image will be downsampled by this factor. 
+            Stride to use in subsampling. If a single int is passed,
+            each dimension of the image will be downsampled by this factor.
             If a tuple is passed, each dimension will be downsampled by the given factor.
         """
-        dims = self.dims
-        ndims = len(dims)
+        value_shape = self.value_shape
+        ndims = len(value_shape)
         if not hasattr(factor, '__len__'):
             factor = [factor] * ndims
         factor = [int(sf) for sf in factor]
@@ -301,10 +294,10 @@ class Images(Data):
         def roundup(a, b):
             return (a + b - 1) // b
 
-        slices = [slice(0, dims[i], factor[i]) for i in range(ndims)]
-        newdims = tuple([roundup(dims[i], factor[i]) for i in range(ndims)])
+        slices = [slice(0, value_shape[i], factor[i]) for i in range(ndims)]
+        new_value_shape = tuple([roundup(value_shape[i], factor[i]) for i in range(ndims)])
 
-        return self.map(lambda v: v[slices], dims=newdims)
+        return self.map(lambda v: v[slices], value_shape=new_value_shape)
 
     def gaussian_filter(self, sigma=2, order=0):
         """
@@ -315,17 +308,17 @@ class Images(Data):
         Parameters
         ----------
         sigma : scalar or sequence of scalars, default = 2
-            Size of the filter size as standard deviation in pixels. 
-            A sequence is interpreted as the standard deviation for each axis. 
+            Size of the filter size as standard deviation in pixels.
+            A sequence is interpreted as the standard deviation for each axis.
             A single scalar is applied equally to all axes.
 
         order : choice of 0 / 1 / 2 / 3 or sequence from same set, optional, default = 0
-            Order of the gaussian kernel, 0 is a gaussian, 
+            Order of the gaussian kernel, 0 is a gaussian,
             higher numbers correspond to derivatives of a gaussian.
         """
         from scipy.ndimage.filters import gaussian_filter
 
-        return self.map(lambda v: gaussian_filter(v, sigma, order), dims=self.dims)
+        return self.map(lambda v: gaussian_filter(v, sigma, order), value_shape=self.value_shape)
 
     def uniform_filter(self, size=2):
         """
@@ -336,8 +329,8 @@ class Images(Data):
         Parameters
         ----------
         size: int, optional, default = 2
-            Size of the filter neighbourhood in pixels. 
-            A sequence is interpreted as the neighborhood size for each axis. 
+            Size of the filter neighbourhood in pixels.
+            A sequence is interpreted as the neighborhood size for each axis.
             A single scalar is applied equally to all axes.
         """
         return self._image_filter(filter='uniform', size=size)
@@ -351,8 +344,8 @@ class Images(Data):
         parameters
         ----------
         size: int, optional, default = 2
-            Size of the filter neighbourhood in pixels. 
-            A sequence is interpreted as the neighborhood size for each axis. 
+            Size of the filter neighbourhood in pixels.
+            A sequence is interpreted as the neighborhood size for each axis.
             A single scalar is applied equally to all axes.
         """
         return self._image_filter(filter='median', size=size)
@@ -380,8 +373,8 @@ class Images(Data):
         func = FILTERS[filter]
 
         mode = self.mode
-        dims = self.dims
-        ndims = len(dims)
+        value_shape = self.value_shape
+        ndims = len(value_shape)
 
         if ndims == 3 and isscalar(size) == 1:
             size = [size, size, size]
@@ -392,13 +385,13 @@ class Images(Data):
                     im.setflags(write=True)
                 else:
                     im = im.copy()
-                for z in arange(0, dims[2]):
+                for z in arange(0, value_shape[2]):
                     im[:, :, z] = func(im[:, :, z], size[0:2])
                 return im
         else:
             filter_ = lambda x: func(x, size)
 
-        return self.map(lambda v: filter_(v), dims=self.dims)
+        return self.map(lambda v: filter_(v), value_shape=self.value_shape)
 
     def localcorr(self, size=2):
         """
@@ -450,11 +443,11 @@ class Images(Data):
             Value to subtract.
         """
         if isinstance(val, ndarray):
-            if val.shape != self.dims:
+            if val.shape != self.value_shape:
                 raise Exception('Cannot subtract image with dimensions %s '
-                                'from images with dimension %s' % (str(val.shape), str(self.dims)))
+                                'from images with dimension %s' % (str(val.shape), str(self.value_shape)))
 
-        return self.map(lambda x: x - val, dims=self.dims)
+        return self.map(lambda x: x - val, value_shape=self.value_shape)
 
     def topng(self, path, prefix='image', overwrite=False):
         """
@@ -520,7 +513,7 @@ class Images(Data):
         from thunder.images.writers import tobinary
         tobinary(self, path, prefix=prefix, overwrite=overwrite)
 
-    def map_as_series(self, func, value_size=None, block_size='150'):
+    def map_as_series(self, func, value_size=None, dtype=None, chunk_size='auto'):
         """
         Efficiently apply a function to images as series data.
 
@@ -540,11 +533,17 @@ class Images(Data):
             func. If not supplied, will be automatically inferred for an extra
             computational cost.
 
-        block_size : str, or tuple of block size per dimension, optional, default = '150'
-            String interpreted as memory size (in megabytes e.g. '64'). Tuple of
-            ints interpreted as 'pixels per dimension'.
+        dtype : str, optional, default = None
+            dtype of one-dimensional ndarray resulting from application of func.
+            If not supplied it will be automatically inferred for an extra computational cost.
+
+        chunk_size : str or tuple, size of image chunk used during conversion, default = 'auto'
+            String interpreted as memory size (in kilobytes, e.g. '64').
+            The exception is the string 'auto'. In spark mode, 'auto' will choose a chunk size to make the
+            resulting blocks ~100 MB in size. In local mode, 'auto' will create a single block.
+            Tuple of ints interpreted as 'pixels per dimension'.
         """
-        blocks = self.toblocks(size=block_size)
+        blocks = self.toblocks(chunk_size=chunk_size)
 
         if value_size is not None:
             dims = list(blocks.blockshape)
@@ -555,4 +554,4 @@ class Images(Data):
         def f(block):
             return apply_along_axis(func, 0, block)
 
-        return blocks.map(f, dims=dims).toimages()
+        return blocks.map(f, value_shape=dims, dtype=dtype).toimages()

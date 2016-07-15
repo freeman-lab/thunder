@@ -1,5 +1,5 @@
 import pytest
-from numpy import arange, allclose, array, mean, apply_along_axis
+from numpy import arange, allclose, array, mean, apply_along_axis, float64
 
 from thunder.images.readers import fromlist, fromarray
 from thunder.images.images import Images
@@ -12,6 +12,8 @@ pytestmark = pytest.mark.usefixtures("eng")
 def test_map(eng):
     data = fromlist([arange(6).reshape((2, 3))], engine=eng)
     assert allclose(data.map(lambda x: x + 1).toarray(), [[1, 2, 3], [4, 5, 6]])
+    assert data.map(lambda x: 1.0*x, dtype=float64).dtype == float64
+    assert data.map(lambda x: 1.0*x).dtype == float64
 
 
 def test_map_singleton(eng):
@@ -186,16 +188,15 @@ def test_map_as_series(eng):
     def f(x):
         return x - mean(x)
     result = apply_along_axis(f, 0, data.toarray())
+    size = (2, 2)
 
-    assert allclose(data.map_as_series(f).toarray(), result)
-    assert allclose(data.map_as_series(f, value_size=5).toarray(), result)
-    assert allclose(data.map_as_series(f, block_size=(2, 2)).toarray(), result)
+    assert allclose(data.map_as_series(f, chunk_size=size).toarray(), result)
+    assert allclose(data.map_as_series(f, chunk_size=size, value_size=5).toarray(), result)
 
     # function does change size of series
     def f(x):
         return x[:-1]
     result = apply_along_axis(f, 0, data.toarray())
 
-    assert allclose(data.map_as_series(f).toarray(), result)
-    assert allclose(data.map_as_series(f, value_size=4).toarray(), result)
-    assert allclose(data.map_as_series(f, block_size=(2, 2)).toarray(), result)
+    assert allclose(data.map_as_series(f, chunk_size=size).toarray(), result)
+    assert allclose(data.map_as_series(f, chunk_size=size, value_size=4).toarray(), result)

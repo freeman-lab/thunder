@@ -1,6 +1,6 @@
 from numpy import array, asarray, ndarray, prod, ufunc, add, subtract, \
-    multiply, divide, isscalar, newaxis, unravel_index, argsort
-from bolt.utils import inshape, tupleize
+    multiply, divide, isscalar, newaxis, unravel_index, dtype
+from bolt.utils import inshape, tupleize, slicify
 from bolt.base import BoltArray
 from bolt.spark.array import BoltArraySpark
 from bolt.spark.chunk import ChunkedArray
@@ -76,7 +76,7 @@ class Base(object):
 
     @property
     def dtype(self):
-        return self._values.dtype
+        return dtype(self._values.dtype)
 
     @property
     def shape(self):
@@ -175,8 +175,7 @@ class Base(object):
             Number of partitions after repartitions.
         """
         if self.mode == 'spark':
-            self.values._rdd = self.values._rdd.repartition(npartitions)
-            return self
+            return self._constructor(self.values.repartition(npartitions)).__finalize__(self)
         else:
             notsupported(self.mode)
 
@@ -195,11 +194,11 @@ class Data(Base):
     _attributes = Base._attributes + ['labels']
 
     def __getitem__(self, item):
-        # handle values
+        # handle values -- convert ints to slices so no dimensions are dropped
         if isinstance(item, int):
-            item = slice(item, item+1, None)
+            item = tuple([slicify(item, self.shape[0])])
         if isinstance(item, tuple):
-            item = tuple([slice(i, i+1, None) if isinstance(i, int) else i for i in item])
+            item = tuple([slicify(i, n) if isinstance(i, int) else i for i, n in zip(item, self.shape[:len(item)])])
         if isinstance(item, (list, ndarray)):
             item = (item,)
         new = self._values.__getitem__(item)
@@ -230,6 +229,10 @@ class Data(Base):
     @property
     def baseshape(self):
         return self.shape[:len(self.baseaxes)]
+
+    @property
+    def value_shape(self):
+        return self.shape[len(self.baseaxes):]
 
     @property
     def labels(self):
@@ -403,7 +406,7 @@ class Data(Base):
 
         return self._constructor(filtered, labels=newlabels).__finalize__(self, noprop=('labels',))
 
-    def _map(self, func, axis=(0,), value_shape=None, dtype=None, with_keys=False):
+    def map(self, func, value_shape=None, dtype=None, with_keys=False):
         """
         Apply an array -> array function across an axis.
 
@@ -430,6 +433,8 @@ class Data(Base):
         with_keys : bool, optional, default=False
             Include keys as an argument to the function
         """
+        axis = self.baseaxes
+
         if self.mode == 'local':
             axes = sorted(tupleize(axis))
             key_shape = [self.shape[axis] for axis in axes]
@@ -537,7 +542,7 @@ class Data(Base):
                 return k1, op(x, y)
 
             rdd = self.tordd().zip(other.tordd()).map(func)
-            barray = BoltArraySpark(rdd, shape=self.shape, dtype=self.dtype)
+            barray = BoltArraySpark(rdd, shape=self.shape, dtype=self.dtype, split=self.values.split)
             return self._constructor(barray).__finalize__(self)
 
     def plus(self, other):

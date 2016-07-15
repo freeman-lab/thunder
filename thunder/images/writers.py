@@ -9,10 +9,10 @@ def topng(images, path, prefix="image", overwrite=False, credentials=None):
     --------
     thunder.data.images.topng
     """
-    dims = images.dims
-    if not len(dims) in [2, 3]:
+    value_shape = images.value_shape
+    if not len(value_shape) in [2, 3]:
         raise ValueError("Only 2D or 3D images can be exported to png, "
-                         "images are %d-dimensional." % len(dims))
+                         "images are %d-dimensional." % len(value_shape))
 
     from scipy.misc import imsave
     from io import BytesIO
@@ -36,10 +36,10 @@ def totif(images, path, prefix="image", overwrite=False, credentials=None):
     --------
     thunder.data.images.totif
     """
-    dims = images.dims
-    if not len(dims) in [2, 3]:
+    value_shape = images.value_shape
+    if not len(value_shape) in [2, 3]:
         raise ValueError("Only 2D or 3D images can be exported to tif, "
-                         "images are %d-dimensional." % len(dims))
+                         "images are %d-dimensional." % len(value_shape))
 
     from scipy.misc import imsave
     from io import BytesIO
@@ -72,7 +72,7 @@ def tobinary(images, path, prefix="image", overwrite=False, credentials=None):
 
     writer = get_parallel_writer(path)(path, overwrite=overwrite, credentials=credentials)
     images.foreach(lambda x: writer.write(tobuffer(x)))
-    config(path, list(images.dims), images.dtype, overwrite=overwrite)
+    config(path, list(images.value_shape), images.dtype, overwrite=overwrite)
 
 def config(path, shape, dtype, name="conf.json", overwrite=True, credentials=None):
     """

@@ -1,5 +1,5 @@
 import pytest
-from numpy import allclose, arange, array, asarray, dot, cov, corrcoef
+from numpy import allclose, arange, array, asarray, dot, cov, corrcoef, float64
 
 from thunder.series.readers import fromlist, fromarray
 from thunder.images.readers import fromlist as img_fromlist
@@ -10,6 +10,8 @@ pytestmark = pytest.mark.usefixtures("eng")
 def test_map(eng):
     data = fromlist([array([1, 2]), array([3, 4])], engine=eng)
     assert allclose(data.map(lambda x: x + 1).toarray(), [[2, 3], [4, 5]])
+    assert data.map(lambda x: 1.0*x, dtype=float64).dtype == float64
+    assert data.map(lambda x: 1.0*x).dtype == float64
 
 
 def test_map_singletons(eng):
