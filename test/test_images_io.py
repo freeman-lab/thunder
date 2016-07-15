@@ -16,7 +16,7 @@ def test_from_list(eng):
     a = arange(8).reshape((2, 4))
     data = fromlist([a], engine=eng)
     assert allclose(data.shape, (1,) + a.shape)
-    assert allclose(data.value_shape, a.shape)
+    assert allclose(data.dims, a.shape)
     assert allclose(data.toarray(), a)
 
 
@@ -24,7 +24,7 @@ def test_from_array(eng):
     a = arange(8).reshape((1, 2, 4))
     data = fromarray(a, engine=eng)
     assert allclose(data.shape, a.shape)
-    assert allclose(data.value_shape, a.shape[1:])
+    assert allclose(data.dims, a.shape[1:])
     assert allclose(data.toarray(), a)
 
 
@@ -36,7 +36,7 @@ def test_from_array_bolt(eng):
         b = barray(a)
     data = fromarray(b)
     assert allclose(data.shape, a.shape)
-    assert allclose(data.value_shape, a.shape[1:])
+    assert allclose(data.dims, a.shape[1:])
     assert allclose(data.toarray(), a)
 
 
@@ -44,7 +44,7 @@ def test_from_array_single(eng):
     a = arange(8).reshape((2, 4))
     data = fromarray(a, engine=eng)
     assert allclose(data.shape, (1,) + a.shape)
-    assert allclose(data.value_shape, a.shape)
+    assert allclose(data.dims, a.shape)
     assert allclose(data.toarray(), a)
 
 
@@ -112,16 +112,6 @@ def test_from_tif_multi_planes(eng):
     assert data.shape[0] == 3
     assert allclose(data.toarray().shape, (3, 70, 75))
     assert [x.sum() for x in data.toarray()] == [1140006, 1119161, 1098917]
-
-
-def test_from_tif_multi_planes_discard_extra(eng):
-    path = os.path.join(resources, 'multilayer_tif', 'dotdotdot_lzw.tif')
-    data = fromtif(path, nplanes=2, engine=eng, discard_extra=True)
-    assert data.shape[0] == 1
-    assert data.shape[1] == 2
-    with pytest.raises(BaseException) as error_msg:
-        data = fromtif(path, nplanes=2, engine=eng, discard_extra=False)
-    assert 'nplanes' in str(error_msg.value)
 
 
 def test_from_tif_multi_planes_many(eng):

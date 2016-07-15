@@ -1,5 +1,3 @@
-from numpy import prod, rollaxis
-
 from ..base import Base
 import logging
 
@@ -10,7 +8,7 @@ class Blocks(Base):
 
     Subclasses of Blocks will be returned by an images.toBlocks() call.
     """
-    _metadata = Base._metadata + ['blockshape', 'padding']
+    _metadata = Base._metadata + ['blockshape']
 
     def __init__(self, values):
         super(Blocks, self).__init__(values)
@@ -21,11 +19,11 @@ class Blocks(Base):
 
     @property
     def blockshape(self):
-        return tuple(self.values.plan)
+        if self.mode == 'spark':
+            return tuple(self.values.plan)
 
-    @property
-    def padding(self):
-        return tuple(self.values.padding)
+        if self.mode == 'local':
+            return tuple(self.values.shape)
 
     def count(self):
         """
@@ -37,30 +35,22 @@ class Blocks(Base):
             return self.tordd().count()
 
         if self.mode == 'local':
-            return prod(self.values.values.shape)
+            return 1
 
-    def collect_blocks(self):
-        """
-        Collect the blocks in a list
-        """
-        if self.mode == 'spark':
-            return self.values.tordd().sortByKey().values().collect()
-
-        if self.mode == 'local':
-            return self.values.values.flatten().tolist()
-
-    def map(self, func, value_shape=None, dtype=None):
+    def map(self, func, dims=None, dtype=None):
         """
         Apply an array -> array function to each block
         """
-        mapped = self.values.map(func, value_shape=value_shape, dtype=dtype)
-        return self._constructor(mapped).__finalize__(self, noprop=('dtype',))
+        if self.mode == 'spark':
+            mapped = self.values.map(func, value_shape=dims, dtype=dtype)
 
-    def map_generic(self, func):
-        """
-        Apply an arbitrary array -> object function to each blocks.
-        """
-        return self.values.map_generic(func)[0]
+        if self.mode == 'local':
+            if dims is not None:
+                logger = logging.getLogger('thunder')
+                logger.warn("dims has no meaning in Blocks.map in local mode")
+            mapped = func(self.values)
+
+        return self._constructor(mapped).__finalize__(self, noprop=('dtype',))
 
     def first(self):
         """
@@ -70,7 +60,7 @@ class Blocks(Base):
             return self.values.tordd().values().first()
 
         if self.mode == 'local':
-            return self.values.first
+            return self.values
 
     def toimages(self):
         """
@@ -82,7 +72,7 @@ class Blocks(Base):
             values = self.values.values_to_keys((0,)).unchunk()
 
         if self.mode == 'local':
-            values = self.values.unchunk()
+            values = self.values
 
         return Images(values)
 
@@ -96,17 +86,7 @@ class Blocks(Base):
             values = self.values.values_to_keys(tuple(range(1, len(self.shape)))).unchunk()
 
         if self.mode == 'local':
-            values = self.values.unchunk()
-            values = rollaxis(values, 0, values.ndim)
+            n = len(self.shape) - 1
+            values = self.values.transpose(tuple(range(1, n+1)) + (0,))
 
         return Series(values)
-
-    def toarray(self):
-        """
-        Convert blocks to local ndarray
-        """
-        if self.mode == 'spark':
-            return self.values.unchunk().toarray()
-
-        if self.mode == 'local':
-            return self.values.unchunk()

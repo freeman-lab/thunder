@@ -149,9 +149,9 @@ class LocalParallelReader(object):
         if spark and isinstance(self.engine, spark):
             npartitions = min(npartitions, nfiles) if npartitions else nfiles
             rdd = self.engine.parallelize(enumerate(files), npartitions)
-            return rdd.map(lambda kv: (kv[0], readlocal(kv[1]), kv[1]))
+            return rdd.map(lambda kv: (kv[0], readlocal(kv[1])))
         else:
-            return [(k, readlocal(v), v) for k, v in enumerate(files)]
+            return [(k, readlocal(v)) for k, v in enumerate(files)]
 
 
 class LocalFileReader(object):
@@ -388,10 +388,10 @@ class BotoParallelReader(BotoClient):
                     raise NotImplementedError("No file reader implementation for URL scheme " + scheme)
 
                 for kv in kvIter:
-                    idx, keyname = kv
-                    key = bucket.get_key(keyname)
+                    idx, keyName = kv
+                    key = bucket.get_key(keyName)
                     buf = key.get_contents_as_string()
-                    yield idx, buf, keyname
+                    yield idx, buf
 
             npartitions = min(npartitions, self.nfiles) if npartitions else self.nfiles
             rdd = self.engine.parallelize(enumerate(keylist), npartitions)
@@ -412,7 +412,7 @@ class BotoParallelReader(BotoClient):
                 idx, keyName = kv
                 key = bucket.get_key(keyName)
                 buf = key.get_contents_as_string()
-                return idx, buf, keyName
+                return idx, buf
 
             return [getsplit(kv) for kv in enumerate(keylist)]
 

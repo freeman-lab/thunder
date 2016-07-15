@@ -113,7 +113,7 @@ class Series(Data):
             return self.values[tuple(zeros(len(self.baseaxes))) + (slice(None, None),)]
 
         if self.mode == 'spark':
-            return self.values.first().toarray()
+            return self.values.tordd().values().first()
 
     def tolocal(self):
         """
@@ -140,7 +140,7 @@ class Series(Data):
         if engine is None:
             raise ValueError('Must provide SparkContext')
 
-        return fromarray(self.toarray(), index=self.index, labels=self.labels, engine=engine)
+        return fromarray(self.toarray(), index=self.index, labels=self.lables, engine=engine)
 
     def sample(self, n=100, seed=None):
         """
@@ -170,7 +170,7 @@ class Series(Data):
 
         return self._constructor(result, index=self.index)
 
-    def map(self, func, index=None, value_shape=None, dtype=None, with_keys=False):
+    def map(self, func, index=None, with_keys=False):
         """
         Map an array -> array function over each record.
 
@@ -182,32 +182,12 @@ class Series(Data):
         index : array-like, optional, default = None
             If known, the index to be used following function evaluation.
 
-        value_shape : int, optional, default=None
-            Known shape of values resulting from operation. Only
-            valid in spark mode.
-
-        dtype : numpy.dtype, optional, default = None
-            If known, the type of the data following function evaluation.
-
         with_keys : boolean, optional, default = False
             If true, function should be of both tuple indices and series values.
         """
-        # if new index is given, can infer missing value_shape
-        if value_shape is None and index is not None:
-            value_shape = len(index)
-
-        if isinstance(value_shape, int):
-            values_shape = (value_shape, )
-        new = super(Series, self).map(func, value_shape=value_shape, dtype=dtype, with_keys=with_keys)
-
-        if index is not None:
-            new.index = index
-        # if series shape did not change and no index was supplied, propagate original index
-        else:
-            if len(new.index) == len(self.index):
-                new.index = self.index
-
-        return new
+        value_shape = len(index) if index is not None else None
+        new = self._map(func, axis=self.baseaxes, value_shape=value_shape, with_keys=with_keys)
+        return self._constructor(new.values, index=index, labels=self.labels)
 
     def reduce(self, func):
         """
