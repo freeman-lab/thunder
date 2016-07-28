@@ -1,8 +1,6 @@
 import logging
 from numpy import ndarray, arange, amax, amin, size, asarray, random, prod, \
-    apply_along_axis
-from itertools import product
-
+    apply_along_axis, nanmean, nanstd, nanmin, nanmax, nansum, nanvar, expand_dims
 from ..base import Data
 
 
@@ -227,6 +225,60 @@ class Images(Data):
         Compute the min across images.
         """
         return self._constructor(self.values.min(axis=0, keepdims=True))
+
+    def nanmean(self):
+        """
+        Compute the mean across images ignoring the NaNs
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmean(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmean(self.values, axis=0), axis=0))
+
+    def nanmax(self):
+        """
+        Compute the max across images ignoring the NaNs
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmax(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmax(self.values, axis=0), axis=0))
+
+    def nanmin(self):
+        """
+        Compute the min across images ignoring the NaNs
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmin(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmin(self.values, axis=0), axis=0))
+
+    def nanstd(self):
+        """
+        Compute the standard deviation across images ignoring the NaNs
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmstd(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanstd(self.values, axis=0), axis=0))
+
+    def nansum(self):
+        """
+        Compute the sum across images ignoring the NaNs
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmsum(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nansum(self.values, axis=0), axis=0))
+
+    def nanvar(self):
+        """
+        Compute the sum across images ignoring the NaNs
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanvar(axis=0, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanvar(self.values, axis=0), axis=0))
 
     def squeeze(self):
         """

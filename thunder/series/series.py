@@ -2,7 +2,8 @@ from numpy import array, mean, median, std, size, arange, percentile,\
     asarray, zeros, corrcoef, where, unique, array_equal, delete, \
     ravel, logical_not, unravel_index, prod, random, shape, \
     dot, outer, expand_dims, ScalarType, ndarray, sqrt, pi, angle, fft, \
-    roll, polyfit, polyval, ceil, float64, fix
+    roll, polyfit, polyval, ceil, float64, fix, \
+    nanmean, nanstd, nanmin, nanmax, nansum, nanvar
 import logging
 from itertools import product
 from bolt.utils import tupleize
@@ -255,6 +256,60 @@ class Series(Data):
         Compute the min across records.
         """
         return self._constructor(self.values.min(axis=self.baseaxes, keepdims=True))
+
+    def nanmean(self):
+        """
+        Compute the mean across records
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmean(axis=self.baseaxes, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmean(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
+
+    def nanvar(self):
+        """
+        Compute the variance across records
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanvar(axis=self.baseaxes, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanvar(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
+
+    def nanstd(self):
+        """
+        Compute the standard deviation across records.
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanstd(axis=self.baseaxes, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanstd(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
+
+    def nansum(self):
+        """
+        Compute the sum across records.
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nansum(axis=self.baseaxes, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nansum(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
+
+    def nanmax(self):
+        """
+        Compute the max across records.
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmax(axis=self.baseaxes, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmax(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
+
+    def nanmin(self):
+        """
+        Compute the min across records.
+        """
+        if self.mode == 'spark':
+            return self._constructor(self.values.nanmin(axis=self.baseaxes, keepdims=True))
+        else:
+            return self._constructor(expand_dims(nanmin(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
 
     def between(self, left, right):
         """

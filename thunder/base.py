@@ -326,6 +326,42 @@ class Data(Base):
         """
         raise NotImplementedError
 
+    def nanmean(self):
+        """
+        Mean of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nansum(self):
+        """
+        Sum of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nanvar(self):
+        """
+        Variance of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nanstd(self):
+        """
+        Standard deviation computed of values along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nanmax(self):
+        """
+        Maximum of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nanmin(self):
+        """
+        Minimum of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
     def map(self, func, **kwargs):
         """
         Map a function over elements.
