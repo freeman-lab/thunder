@@ -84,4 +84,4 @@ def getlabel(key):
     """
     Get a file label from keys with reversed order
     """
-    return '-'.join(reversed(["%05g" % k for k in key]))
+    return '-'.join(["%05g" % k for k in key])

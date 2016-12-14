@@ -76,7 +76,11 @@ def listrecursive(path, ext=None):
     filenames = set()
     for root, dirs, files in os.walk(path):
         if ext:
-            files = fnmatch.filter(files, '*.' + ext)
+            if ext == 'tif' or ext == 'tiff':
+                tmp = fnmatch.filter(files, '*.' + 'tiff')
+                files = tmp + fnmatch.filter(files, '*.' + 'tif')
+            else:
+                files = fnmatch.filter(files, '*.' + ext)
         for filename in files:
             filenames.add(os.path.join(root, filename))
     filenames = list(filenames)
@@ -89,13 +93,17 @@ def listflat(path, ext=None):
     """
     if os.path.isdir(path):
         if ext:
-            files = glob.glob(os.path.join(path, '*.' + ext))
+            if ext == 'tif' or ext == 'tiff':
+                files = glob.glob(os.path.join(path, '*.tif'))
+                files = files + glob.glob(os.path.join(path, '*.tiff'))
+            else:
+                files = glob.glob(os.path.join(path, '*.' + ext))
         else:
             files = [os.path.join(path, fname) for fname in os.listdir(path)]
     else:
         files = glob.glob(path)
     # filter out directories
-    files = [fpath for fpath in files if not os.path.isdir(fpath)]
+    files = [fpath for fpath in files if not isinstance(fpath, list) and not os.path.isdir(fpath)]
     return sorted(files)
 
 def uri_to_path(uri):
@@ -149,9 +157,9 @@ class LocalParallelReader(object):
         if spark and isinstance(self.engine, spark):
             npartitions = min(npartitions, nfiles) if npartitions else nfiles
             rdd = self.engine.parallelize(enumerate(files), npartitions)
-            return rdd.map(lambda kv: (kv[0], readlocal(kv[1])))
+            return rdd.map(lambda kv: (kv[0], readlocal(kv[1]), kv[1]))
         else:
-            return [(k, readlocal(v)) for k, v in enumerate(files)]
+            return [(k, readlocal(v), v) for k, v in enumerate(files)]
 
 
 class LocalFileReader(object):
@@ -341,7 +349,12 @@ class BotoParallelReader(BotoClient):
             bucket, parse[2], prefix=parse[3], postfix=parse[4], recursive=recursive)
         keylist = [key.name for key in keys]
         if ext:
-            keylist = [keyname for keyname in keylist if keyname.endswith(ext)]
+            if ext == 'tif' or ext == 'tiff':
+                keylist = [keyname for keyname in keylist if keyname.endswith('tif')]
+                keylist.append([keyname for keyname in keylist if keyname.endswith('tiff')])
+            else:
+                keylist = [keyname for keyname in keylist if keyname.endswith(ext)]
+
         keylist.sort()
         keylist = select(keylist, start, stop)
 
@@ -388,10 +401,10 @@ class BotoParallelReader(BotoClient):
                     raise NotImplementedError("No file reader implementation for URL scheme " + scheme)
 
                 for kv in kvIter:
-                    idx, keyName = kv
-                    key = bucket.get_key(keyName)
+                    idx, keyname = kv
+                    key = bucket.get_key(keyname)
                     buf = key.get_contents_as_string()
-                    yield idx, buf
+                    yield idx, buf, keyname
 
             npartitions = min(npartitions, self.nfiles) if npartitions else self.nfiles
             rdd = self.engine.parallelize(enumerate(keylist), npartitions)
@@ -412,7 +425,7 @@ class BotoParallelReader(BotoClient):
                 idx, keyName = kv
                 key = bucket.get_key(keyName)
                 buf = key.get_contents_as_string()
-                return idx, buf
+                return idx, buf, keyName
 
             return [getsplit(kv) for kv in enumerate(keylist)]
 

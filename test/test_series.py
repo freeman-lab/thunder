@@ -532,3 +532,34 @@ def test_mean_by_window(eng):
     assert allclose(test3, [2, 3, 4, 5])
     test4 = data.mean_by_window(indices=[3], window=4).toarray()
     assert allclose(test4, [1, 2, 3, 4])
+
+
+def test_reshape(eng):
+    original =  fromarray(arange(72).reshape(6, 6, 2), engine=eng)
+    arr = original.toarray()
+
+    assert allclose(arr.reshape(12, 3, 2), original.reshape(12, 3, 2).toarray())
+    assert allclose(arr.reshape(36, 2), original.reshape(36, 2).toarray())
+    assert allclose(arr.reshape(4, 3, 3, 2), original.reshape(4, 3, 3, 2).toarray())
+
+    # must conserve number of elements
+    with pytest.raises(ValueError):
+        original.reshape(6, 3, 2)
+
+    # cannot change length of series
+    with pytest.raises(ValueError):
+        original.reshape(6, 3, 4)
+
+
+def test_downsample(eng):
+    data = fromlist([arange(8)], engine=eng)
+    vals = data.downsample(2).toarray()
+    assert allclose(vals, [0.5, 2.5, 4.5, 6.5])
+    vals = data.downsample(4).toarray()
+    assert allclose(vals, [1.5, 5.5])
+
+
+def test_downsample_uneven(eng):
+    data = fromlist([arange(9)], engine=eng)
+    vals = data.downsample(2).toarray()
+    assert allclose(vals, [0.5, 2.5, 4.5, 6.5])

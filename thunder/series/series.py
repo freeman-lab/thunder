@@ -2,7 +2,7 @@ from numpy import array, mean, median, std, size, arange, percentile,\
     asarray, zeros, corrcoef, where, unique, array_equal, delete, \
     ravel, logical_not, unravel_index, prod, random, shape, \
     dot, outer, expand_dims, ScalarType, ndarray, sqrt, pi, angle, fft, \
-    roll, polyfit, polyval, ceil, float64, fix, \
+    roll, polyfit, polyval, ceil, float64, fix, floor \
     nanmean, nanstd, nanmin, nanmax, nansum, nanvar
 import logging
 from itertools import product
@@ -83,16 +83,8 @@ class Series(Data):
         """
         Reshape all dimensions but the last into a single dimension
         """
-        size = prod([s for i, s in enumerate(self.shape) if i in self.baseaxes])
-        newvalues = self.values.reshape(size, self.shape[-1])
-
-        if self.labels is not None:
-            fullshape = prod(self.labels.shape)
-            newlabels = self.labels.reshape(size, fullshape/size).squeeze()
-        else:
-            newlabels = None
-
-        return self._constructor(newvalues, labels=newlabels).__finalize__(self, noprop=('labels',))
+        size = prod(self.shape[:-1])
+        return self.reshape(size, self.shape[-1])
 
     def count(self):
         """
@@ -114,7 +106,7 @@ class Series(Data):
             return self.values[tuple(zeros(len(self.baseaxes))) + (slice(None, None),)]
 
         if self.mode == 'spark':
-            return self.values.tordd().values().first()
+            return self.values.first().toarray()
 
     def tolocal(self):
         """
@@ -141,7 +133,7 @@ class Series(Data):
         if engine is None:
             raise ValueError('Must provide SparkContext')
 
-        return fromarray(self.toarray(), index=self.index, labels=self.lables, engine=engine)
+        return fromarray(self.toarray(), index=self.index, labels=self.labels, engine=engine)
 
     def sample(self, n=100, seed=None):
         """
@@ -171,7 +163,7 @@ class Series(Data):
 
         return self._constructor(result, index=self.index)
 
-    def map(self, func, index=None, dtype=None, with_keys=False):
+    def map(self, func, index=None, value_shape=None, dtype=None, with_keys=False):
         """
         Map an array -> array function over each record.
 
@@ -183,15 +175,32 @@ class Series(Data):
         index : array-like, optional, default = None
             If known, the index to be used following function evaluation.
 
+        value_shape : int, optional, default=None
+            Known shape of values resulting from operation. Only
+            valid in spark mode.
+
         dtype : numpy.dtype, optional, default = None
             If known, the type of the data following function evaluation.
 
         with_keys : boolean, optional, default = False
             If true, function should be of both tuple indices and series values.
         """
-        value_shape = len(index) if index is not None else None
-        new = self._map(func, axis=self.baseaxes, value_shape=value_shape, dtype=dtype, with_keys=with_keys)
-        return self._constructor(new.values, index=index, labels=self.labels)
+        # if new index is given, can infer missing value_shape
+        if value_shape is None and index is not None:
+            value_shape = len(index)
+
+        if isinstance(value_shape, int):
+            values_shape = (value_shape, )
+        new = super(Series, self).map(func, value_shape=value_shape, dtype=dtype, with_keys=with_keys)
+
+        if index is not None:
+            new.index = index
+        # if series shape did not change and no index was supplied, propagate original index
+        else:
+            if len(new.index) == len(self.index):
+                new.index = self.index
+
+        return new
 
     def reduce(self, func):
         """
@@ -293,6 +302,31 @@ class Series(Data):
             return self._constructor(self.values.nanmin(axis=self.baseaxes, keepdims=True))
         else:
             return self._constructor(expand_dims(nanmin(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
+    
+    def reshape(self, *shape):
+        """
+        Reshape the Series object
+
+        Cannot change the last dimension.
+
+        Parameters
+        ----------
+        shape: one or more ints
+            New shape
+        """
+        if prod(self.shape) != prod(shape):
+            raise ValueError("Reshaping must leave the number of elements unchanged")
+
+        if self.shape[-1] != shape[-1]:
+            raise ValueError("Reshaping cannot change the size of the constituent series (last dimension)")
+
+        if self.labels is not None:
+            newlabels = self.labels.reshape(*shape[:-1])
+        else:
+            newlabels = None
+
+        return self._constructor(self.values.reshape(shape), labels=newlabels).__finalize__(self, noprop=('labels',))
+>>>>>>> 967ff8f3e7c2fabe1705743d95eb2746d4329786
 
     def between(self, left, right):
         """
@@ -375,7 +409,7 @@ class Series(Data):
 
         Parameters
         ----------
-        axis : int, optional, default = 0
+        axis : int, optional, default = 1
             Which axis to center along, within (1) or across (0) records.
         """
         if axis == 1:
@@ -872,20 +906,36 @@ class Series(Data):
         newindex = arange(0, len(masks[0]))
         return self.map(lambda x: mean([x[m] for m in masks], axis=0), index=newindex)
 
-    def subsample(self, sampleFactor=2):
+    def subsample(self, sample_factor=2):
         """
         Subsample series by an integer factor.
 
         Parameters
         ----------
-        sampleFactor : positive integer, optional, default=2
-
+        sample_factor : positive integer, optional, default=2
+            Factor for downsampling.
         """
-        if sampleFactor < 0:
-            raise Exception('Factor for subsampling must be postive, got %g' % sampleFactor)
-        s = slice(0, len(self.index), sampleFactor)
+        if sample_factor < 0:
+            raise Exception('Factor for subsampling must be postive, got %g' % sample_factor)
+        s = slice(0, len(self.index), sample_factor)
         newindex = self.index[s]
         return self.map(lambda v: v[s], index=newindex)
+
+    def downsample(self, sample_factor=2):
+        """
+        Downsample series by an integer factor by averaging.
+
+        Parameters
+        ----------
+        sample_factor : positive integer, optional, default=2
+            Factor for downsampling.
+        """
+        if sample_factor < 0:
+            raise Exception('Factor for subsampling must be postive, got %g' % sample_factor)
+        newlength = floor(len(self.index) / sample_factor)
+        func = lambda v: v[0:int(newlength * sample_factor)].reshape(-1, sample_factor).mean(axis=1)
+        newindex = arange(newlength)
+        return self.map(func, index=newindex)
 
     def fourier(self, freq=None):
         """
@@ -919,18 +969,15 @@ class Series(Data):
 
     def convolve(self, signal, mode='full'):
         """
-        Conolve series data against another signal.
+        Convolve series data against another signal.
 
         Parameters
         ----------
         signal : array
             Signal to convolve with (must be 1D)
 
-        var : str
-            Variable name if loading from a MAT file
-
         mode : str, optional, default='full'
-            Mode of convolution, options are 'full', 'same', and 'same'
+            Mode of convolution, options are 'full', 'same', and 'valid'
         """
 
         from numpy import convolve
@@ -996,7 +1043,7 @@ class Series(Data):
             if n == 0:
                 b = zeros((s.shape[0],))
             else:
-                y /= norm(y)
+                y /= n
                 b = dot(s, y)
             return b
 
@@ -1089,23 +1136,29 @@ class Series(Data):
 
         return self.map(get)
 
-    def toimages(self, size='150'):
+    def toimages(self, chunk_size='auto'):
         """
-        Converts Series to Images.
+        Converts to images data.
 
-        Equivalent to calling series.toBlocks(size).toImages()
+        This method is equivalent to series.toblocks(size).toimages().
 
         Parameters
         ----------
-        size : str, optional, default = "150M"
-            String interpreted as memory size.
+        chunk_size : str or tuple, size of series chunk used during conversion, default = 'auto'
+            String interpreted as memory size (in kilobytes, e.g. '64').
+            The exception is the string 'auto', which will choose a chunk size to make the
+            resulting blocks ~100 MB in size. Int interpreted as 'number of elements'.
+            Only valid in spark mode.
         """
         from thunder.images.images import Images
+
+        if chunk_size is 'auto':
+            chunk_size = str(max([int(1e5/prod(self.baseshape)), 1]))
 
         n = len(self.shape) - 1
 
         if self.mode == 'spark':
-            return Images(self.values.swap(tuple(range(n)), (0,), size=size))
+            return Images(self.values.swap(tuple(range(n)), (0,), size=chunk_size))
 
         if self.mode == 'local':
             return Images(self.values.transpose((n,) + tuple(range(0, n))))

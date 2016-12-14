@@ -74,3 +74,24 @@ def test_local_recursive_nested(tmpdir):
     make(tmpdir, filenames)
     actual = LocalFileReader().list(str(tmpdir), recursive=True)
     assert parse(actual) == expected
+
+
+def test_tif_tiff_flat(tmpdir):
+    filenames = ['b.tif', 'a.tif', 'c.tiff']
+    expected = ['a.tif', 'b.tif', 'c.tiff']
+    make(tmpdir, filenames)
+    actual = LocalParallelReader().list(str(tmpdir), ext='tif', recursive=False)
+    assert parse(actual) == expected
+    actual = LocalParallelReader().list(str(tmpdir), ext='tif', recursive=True)
+    assert parse(actual) == expected
+
+
+def test_tif_tiff_recursive(tmpdir):
+    filenames = ['foo/b.tif', 'foo/bar/q.tiff', 'bar/a', 'c.tif', 'd.tiff']
+    expected = ['c.tif', 'd.tiff']
+    make(tmpdir, filenames)
+    actual = LocalParallelReader().list(str(tmpdir), ext='tif', recursive=False)
+    assert parse(actual) == expected
+    expected = ['c.tif', 'd.tiff', 'b.tif', 'q.tiff']
+    actual = LocalParallelReader().list(str(tmpdir), ext='tif', recursive=True)
+    assert parse(actual) == expected

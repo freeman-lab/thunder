@@ -22,6 +22,17 @@ def test_full(eng):
     assert allclose(vals, truth)
 
 
+def test_blocksize(eng):
+    a = arange(100*100, dtype='int16').reshape((100, 100))
+    data = fromlist(10*[a], engine=eng)
+
+    blocks = data.toblocks((5, 5))
+    assert blocks.blockshape == (10, 5, 5)
+
+    blocks = data.toblocks('1')
+    assert blocks.blockshape == (10, 5, 100)
+
+
 def test_padding(eng):
     a = arange(30).reshape((5, 6))
     data = fromlist([a, a], engine=eng)

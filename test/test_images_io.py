@@ -16,7 +16,7 @@ def test_from_list(eng):
     a = arange(8).reshape((2, 4))
     data = fromlist([a], engine=eng)
     assert allclose(data.shape, (1,) + a.shape)
-    assert allclose(data.dims, a.shape)
+    assert allclose(data.value_shape, a.shape)
     assert allclose(data.toarray(), a)
 
 
@@ -24,7 +24,7 @@ def test_from_array(eng):
     a = arange(8).reshape((1, 2, 4))
     data = fromarray(a, engine=eng)
     assert allclose(data.shape, a.shape)
-    assert allclose(data.dims, a.shape[1:])
+    assert allclose(data.value_shape, a.shape[1:])
     assert allclose(data.toarray(), a)
 
 
@@ -36,7 +36,7 @@ def test_from_array_bolt(eng):
         b = barray(a)
     data = fromarray(b)
     assert allclose(data.shape, a.shape)
-    assert allclose(data.dims, a.shape[1:])
+    assert allclose(data.value_shape, a.shape[1:])
     assert allclose(data.toarray(), a)
 
 
@@ -44,7 +44,7 @@ def test_from_array_single(eng):
     a = arange(8).reshape((2, 4))
     data = fromarray(a, engine=eng)
     assert allclose(data.shape, (1,) + a.shape)
-    assert allclose(data.dims, a.shape)
+    assert allclose(data.value_shape, a.shape)
     assert allclose(data.toarray(), a)
 
 
@@ -114,6 +114,16 @@ def test_from_tif_multi_planes(eng):
     assert [x.sum() for x in data.toarray()] == [1140006, 1119161, 1098917]
 
 
+def test_from_tif_multi_planes_discard_extra(eng):
+    path = os.path.join(resources, 'multilayer_tif', 'dotdotdot_lzw.tif')
+    data = fromtif(path, nplanes=2, engine=eng, discard_extra=True)
+    assert data.shape[0] == 1
+    assert data.shape[1] == 2
+    with pytest.raises(BaseException) as error_msg:
+        data = fromtif(path, nplanes=2, engine=eng, discard_extra=False)
+    assert 'nplanes' in str(error_msg.value)
+
+
 def test_from_tif_multi_planes_many(eng):
     path = os.path.join(resources, 'multilayer_tif', 'dotdotdot_lzw*.tif')
     data = fromtif(path, nplanes=3, engine=eng)
@@ -134,6 +144,18 @@ def test_from_tif_multi_planes_variable(eng):
     assert allclose(data[:, :, :].toarray().shape, (8, 70, 75))
     assert [x.sum() for x in data.toarray()] == [
         1140006, 1119161, 1140006, 1119161, 1098917, 1140006, 1119161, 1098917]
+
+def test_from_tif_multi_planes_paritions(eng):
+    if eng is not None:
+        path = os.path.join(resources, 'multilayer_tif', 'dotdot*_lzw*.tif')
+        data = fromtif(path, nplanes=1, engine=eng, npartitions=1)
+        assert data.npartitions() == 1
+        data = fromtif(path, nplanes=1, engine=eng, npartitions=2)
+        assert data.npartitions() == 2
+        data = fromtif(path, nplanes=1, engine=eng, npartitions=3)
+        assert data.npartitions() == 3
+        data = fromtif(path, nplanes=1, engine=eng, npartitions=4)
+        assert data.npartitions() == 4
 
 
 def test_from_tif_signed(eng):
@@ -254,8 +276,37 @@ def test_to_tif(tmpdir, eng):
     assert sorted(files) == ['image-00000.tif', 'image-00001.tif']
 
 
-def test_to_tif_roundtrip(tmpdir, eng):
+def test_to_tif_roundtrip_multipage(tmpdir, eng):
+    a = [arange(24, dtype='int16').reshape((2, 3, 4)), arange(24, dtype='int16').reshape((2, 3, 4))]
+    data = fromlist(a, engine=eng)
+    data.totif(os.path.join(str(tmpdir), 'images'), prefix='image')
+    loaded = fromtif(os.path.join(str(tmpdir), 'images'))
+    assert allclose(data.toarray(), loaded.toarray())
+
+
+def test_to_tiff_roundtrip_multipage(tmpdir, eng):
+    a = [arange(24, dtype='int16').reshape((2, 3, 4)), arange(24, dtype='int16').reshape((2, 3, 4))]
+    data = fromlist(a, engine=eng)
+    data.totif(os.path.join(str(tmpdir), 'images'), prefix='image')
+    # rename to tiff
+    for filename in glob.iglob(os.path.join(str(tmpdir), 'images', '*.tif')):
+        os.rename(filename, filename[:-4] + '.tiff')
+    files = [os.path.basename(f) for f in glob.glob(str(tmpdir) + '/images/image*')]
+    assert sorted(files) == ['image-00000.tiff', 'image-00001.tiff']
+    loaded = fromtif(os.path.join(str(tmpdir), 'images'))
+    assert allclose(data.toarray(), loaded.toarray())
+
+
+def test_to_tif_roundtrip_8bit(tmpdir, eng):
     a = [arange(8, dtype='uint8').reshape((4, 2))]
+    data = fromlist(a, engine=eng)
+    data.totif(os.path.join(str(tmpdir), 'images'), prefix='image')
+    loaded = fromtif(os.path.join(str(tmpdir), 'images'))
+    assert allclose(data.toarray(), loaded.toarray())
+
+
+def test_to_tif_roundtrip_16bit(tmpdir, eng):
+    a = [arange(8, dtype='uint16').reshape((4, 2))]
     data = fromlist(a, engine=eng)
     data.totif(os.path.join(str(tmpdir), 'images'), prefix='image')
     loaded = fromtif(os.path.join(str(tmpdir), 'images'))
@@ -265,6 +316,6 @@ def test_to_tif_roundtrip(tmpdir, eng):
 def test_from_example(eng):
     return
     data = fromexample('fish', engine=eng)
-    assert allclose(data.shape, (20, 76, 87, 2))
+    assert allclose(data.shape, (20, 2, 76, 87))
     data = fromexample('mouse', engine=eng)
     assert allclose(data.shape, (20, 64, 64))

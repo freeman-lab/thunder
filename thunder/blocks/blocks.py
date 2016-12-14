@@ -49,18 +49,18 @@ class Blocks(Base):
         if self.mode == 'local':
             return self.values.values.flatten().tolist()
 
-    def map(self, func, dims=None, dtype=None):
+    def map(self, func, value_shape=None, dtype=None):
         """
         Apply an array -> array function to each block
         """
-        mapped = self.values.map(func, value_shape=dims, dtype=dtype)
+        mapped = self.values.map(func, value_shape=value_shape, dtype=dtype)
         return self._constructor(mapped).__finalize__(self, noprop=('dtype',))
 
     def map_generic(self, func):
         """
         Apply an arbitrary array -> object function to each blocks.
         """
-        return self.values.map_generic(func)[0] 
+        return self.values.map_generic(func)[0]
 
     def first(self):
         """

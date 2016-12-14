@@ -77,7 +77,7 @@ The argument `engine` can be either `None` for local use or a `SparkContext` for
 
 ## using with spark
 
-Thunder doesn't require Spark and can run locally without it, but Spark and Thunder work great together! To install and configure a Spark cluster, consult the official [Spark documentation](http://spark.apache.org/docs/latest). Thunder supports Spark version 1.5+, and uses the Python API PySpark. If you have Spark installed, you can install Thunder just by calling `pip install thunder-python` on both the master node and all worker nodes of your cluster. Alternatively, you can clone this GitHub repository, and make sure it is on the `PYTHONPATH` of both the master and worker nodes. 
+Thunder doesn't require Spark and can run locally without it, but Spark and Thunder work great together! To install and configure a Spark cluster, consult the official [Spark documentation](http://spark.apache.org/docs/latest). Thunder supports Spark version 1.5+ (currently tested against 2.0.0), and uses the Python API PySpark. If you have Spark installed, you can install Thunder just by calling `pip install thunder-python` on both the master node and all worker nodes of your cluster. Alternatively, you can clone this GitHub repository, and make sure it is on the `PYTHONPATH` of both the master and worker nodes. 
 
 Once you have a running cluster with a valid `SparkContext` — this is created automatically as the variable `sc` if you call the `pyspark` executable — you can pass it as the `engine` to any of Thunder's loading methods, and this will load your data in distributed `'spark'` mode. In this mode, all operations will be parallelized, and chained operations will be lazily executed.
 
@@ -85,6 +85,6 @@ Once you have a running cluster with a valid `SparkContext` — this is created 
 
 Thunder is a community effort! The codebase so far is due to the excellent work of the following individuals:
 
-> Andrew Osheroff, Ben Poole, Chris Stock, Davis Bennett, Jascha Swisher, Jason Wittenbach, Jeremy Freeman, Josh Rosen, Kunal Lillaney, Logan Grosenick, Matt Conlen, Michael Broxton, Noah Young, Ognen Duzlevski, Richard Hofer, Owen Kahn, Ted Fujimoto, Tom Sainsbury, Uri Laseron
+> Andrew Osheroff, Ben Poole, Chris Stock, Davis Bennett, Jascha Swisher, Jason Wittenbach, Jeremy Freeman, Josh Rosen, Kunal Lillaney, Logan Grosenick, Matt Conlen, Michael Broxton, Noah Young, Ognen Duzlevski, Richard Hofer, Owen Kahn, Ted Fujimoto, Tom Sainsbury, Uri Laseron, W J Liddy
 
 If you run into a problem, have a feature request, or want to contribute, submit an issue or a pull request, or come talk to us in the [chatroom](https://gitter.im/thunder-project/thunder)!

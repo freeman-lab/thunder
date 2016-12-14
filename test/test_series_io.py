@@ -115,7 +115,7 @@ def test_to_binary_roundtrip(tmpdir, eng):
 def test_to_binary_roundtrip_partitioned(tmpdir, eng):
     a = arange(8, dtype='int16').reshape((4, 2))
     p = str(tmpdir) + '/data'
-    data = fromarray([a, a], npartitions=2, engine=eng)
+    data = fromarray([a, a], npartitions=4, engine=eng)
     data.tobinary(p)
     loaded = frombinary(p)
     assert allclose(data.toarray(), loaded.toarray())

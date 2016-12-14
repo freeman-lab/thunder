@@ -1,5 +1,5 @@
 from numpy import array, asarray, ndarray, prod, ufunc, add, subtract, \
-    multiply, divide, isscalar, newaxis, unravel_index, argsort
+    multiply, divide, isscalar, newaxis, unravel_index, dtype
 from bolt.utils import inshape, tupleize, slicify
 from bolt.base import BoltArray
 from bolt.spark.array import BoltArraySpark
@@ -76,7 +76,7 @@ class Base(object):
 
     @property
     def dtype(self):
-        return self._values.dtype
+        return dtype(self._values.dtype)
 
     @property
     def shape(self):
@@ -139,7 +139,7 @@ class Base(object):
 
     def uncache(self):
         """
-        Enable in-memory caching.
+        Disable in-memory caching (Spark only).
         """
         if self.mode == 'spark':
             self.values.unpersist()
@@ -149,16 +149,16 @@ class Base(object):
 
     def iscached(self):
         """
-        Get whether object is cached.
+        Get whether object is cached (Spark only).
         """
         if self.mode == 'spark':
-            return self.tordd().iscached
+            return self.tordd().is_cached
         else:
             notsupported(self.mode)
 
     def npartitions(self):
         """
-        Get number of partitions.
+        Get number of partitions (Spark only).
         """
         if self.mode == 'spark':
             return self.tordd().getNumPartitions()
@@ -175,8 +175,7 @@ class Base(object):
             Number of partitions after repartitions.
         """
         if self.mode == 'spark':
-            self.values._rdd = self.values._rdd.repartition(npartitions)
-            return self
+            return self._constructor(self.values.repartition(npartitions)).__finalize__(self)
         else:
             notsupported(self.mode)
 
@@ -232,6 +231,10 @@ class Data(Base):
         return self.shape[:len(self.baseaxes)]
 
     @property
+    def value_shape(self):
+        return self.shape[len(self.baseaxes):]
+
+    @property
     def labels(self):
         return self._labels
 
@@ -251,6 +254,18 @@ class Data(Base):
     def astype(self, dtype, casting='unsafe'):
         """
         Cast values to the specified type.
+
+        Parameters
+        ----------
+        dtype : str or dtype
+            Typecode or data-type to which the array is cast.
+        casting : ['no', 'equiv', 'safe', 'same_kind', 'unsafe'], optional
+            Controld what kind of data casting may occur. Defaluts to 'unsafe' for backwards compatibility.
+            'no' means the data types should not be cast at all.
+            'equiv' means only byte-order changes are allowed.
+            'safe' means only casts which can preserve values are allowed.
+            'same_kind' means only safe casts or casts within a kind, like float64 to float32, are allowed.
+            'unsafe' means any data conversions may be done.
         """
         return self._constructor(
             self.values.astype(dtype=dtype, casting=casting)).__finalize__(self)
@@ -409,9 +424,6 @@ class Data(Base):
         ----------
         func : function
             Function to apply, should return boolean
-
-        axis : tuple or int, optional, default=(0,)
-            Axis or multiple axes to filter along.
         """
 
         if self.mode == 'local':
@@ -439,7 +451,7 @@ class Data(Base):
 
         return self._constructor(filtered, labels=newlabels).__finalize__(self, noprop=('labels',))
 
-    def _map(self, func, axis=(0,), value_shape=None, dtype=None, with_keys=False):
+    def map(self, func, value_shape=None, dtype=None, with_keys=False):
         """
         Apply an array -> array function across an axis.
 
@@ -459,13 +471,15 @@ class Data(Base):
             Known shape of values resulting from operation. Only
             valid in spark mode.
 
-        dtype: numpy.dtype, optional, default=None
+        dtype : numpy dtype, optional, default=None
             Known shape of dtype resulting from operation. Only
             valid in spark mode.
 
         with_keys : bool, optional, default=False
             Include keys as an argument to the function
         """
+        axis = self.baseaxes
+
         if self.mode == 'local':
             axes = sorted(tupleize(axis))
             key_shape = [self.shape[axis] for axis in axes]
@@ -546,7 +560,7 @@ class Data(Base):
         Parameters
         ----------
         other : Data or numpy array
-           Data to apply elementwise operation to
+            Data to apply elementwise operation to
 
         op : function
             Binary operator to use for elementwise operations, e.g. add, subtract
@@ -573,46 +587,30 @@ class Data(Base):
                 return k1, op(x, y)
 
             rdd = self.tordd().zip(other.tordd()).map(func)
-            barray = BoltArraySpark(rdd, shape=self.shape, dtype=self.dtype)
+            barray = BoltArraySpark(rdd, shape=self.shape, dtype=self.dtype, split=self.values.split)
             return self._constructor(barray).__finalize__(self)
 
     def plus(self, other):
         """
         Elementwise addition.
-
-        See also
-        --------
-        elementwise
         """
         return self.element_wise(other, add)
 
     def minus(self, other):
         """
         Elementwise subtraction.
-
-        See also
-        --------
-        elementwise
         """
         return self.element_wise(other, subtract)
 
     def dottimes(self, other):
         """
         Elementwise multiplication.
-
-        See also
-        --------
-        elementwise
         """
         return self.element_wise(other, multiply)
 
     def dotdivide(self, other):
         """
         Elementwise divison.
-
-        See also
-        --------
-        elementwise
         """
         return self.element_wise(other, divide)
 

@@ -1,4 +1,5 @@
 import itertools
+import logging
 from io import BytesIO
 from numpy import frombuffer, prod, random, asarray, expand_dims
 
@@ -6,7 +7,7 @@ from ..utils import check_spark, check_options
 spark = check_spark()
 
 
-def fromrdd(rdd, dims=None, nrecords=None, dtype=None, labels=None):
+def fromrdd(rdd, dims=None, nrecords=None, dtype=None, labels=None, ordered=False):
     """
     Load images from a Spark RDD.
 
@@ -30,6 +31,9 @@ def fromrdd(rdd, dims=None, nrecords=None, dtype=None, labels=None):
 
     labels : array, optional, default = None
         Labels for records. If provided, should be one-dimensional.
+
+    ordered : boolean, optional, default = False
+        Whether or not the rdd is ordered by key
     """
     from .images import Images
     from bolt.spark.array import BoltArraySpark
@@ -48,7 +52,7 @@ def fromrdd(rdd, dims=None, nrecords=None, dtype=None, labels=None):
             k = (k,)
         return k, v
 
-    values = BoltArraySpark(rdd.map(process_keys), shape=(nrecords,) + tuple(dims), dtype=dtype, split=1)
+    values = BoltArraySpark(rdd.map(process_keys), shape=(nrecords,) + tuple(dims), dtype=dtype, split=1, ordered=ordered)
     return Images(values, labels=labels)
 
 def fromarray(values, labels=None, npartitions=None, engine=None):
@@ -106,6 +110,7 @@ def fromarray(values, labels=None, npartitions=None, engine=None):
         if not npartitions:
             npartitions = engine.defaultParallelism
         values = bolt.array(values, context=engine, npartitions=npartitions, axis=(0,))
+        values._ordered = True
         return Images(values)
 
     return Images(values, labels=labels)
@@ -144,7 +149,7 @@ def fromlist(items, accessor=None, keys=None, dims=None, dtype=None, labels=None
         rdd = engine.parallelize(items, npartitions)
         if accessor:
             rdd = rdd.mapValues(accessor)
-        return fromrdd(rdd, nrecords=nrecords, dims=dims, dtype=dtype, labels=labels)
+        return fromrdd(rdd, nrecords=nrecords, dims=dims, dtype=dtype, labels=labels, ordered=True)
 
     else:
         if accessor:
@@ -206,7 +211,7 @@ def frompath(path, accessor=None, ext=None, start=None, stop=None, recursive=Fal
             data = data.values().zipWithIndex().map(switch)
         else:
             nrecords = reader.nfiles
-        return fromrdd(data, nrecords=nrecords, dims=dims, dtype=dtype, labels=labels)
+        return fromrdd(data, nrecords=nrecords, dims=dims, dtype=dtype, labels=labels, ordered=True)
 
     else:
         if accessor:
@@ -283,8 +288,8 @@ def frombinary(path, shape=None, dtype=None, ext='bin', start=None, stop=None, r
             raise ValueError("Last dimension '%d' must be divisible by nplanes '%d'" %
                              (shape[-1], nplanes))
 
-    def getarray(idxAndBuf):
-        idx, buf = idxAndBuf
+    def getarray(idx_buffer_filename):
+        idx, buf, _ = idx_buffer_filename
         ary = frombuffer(buf, dtype=dtype, count=int(prod(shape))).reshape(shape, order=order)
         if nplanes is None:
             yield (idx,), ary
@@ -294,17 +299,17 @@ def frombinary(path, shape=None, dtype=None, ext='bin', start=None, stop=None, r
             if shape[-1] % nplanes:
                 npoints += 1
             timepoint = 0
-            lastPlane = 0
-            curPlane = 1
-            while curPlane < ary.shape[-1]:
-                if curPlane % nplanes == 0:
-                    slices = [slice(None)] * (ary.ndim - 1) + [slice(lastPlane, curPlane)]
+            last_plane = 0
+            current_plane = 1
+            while current_plane < ary.shape[-1]:
+                if current_plane % nplanes == 0:
+                    slices = [slice(None)] * (ary.ndim - 1) + [slice(last_plane, current_plane)]
                     yield idx*npoints + timepoint, ary[slices].squeeze()
                     timepoint += 1
-                    lastPlane = curPlane
-                curPlane += 1
+                    last_plane = current_plane
+                current_plane += 1
             # yield remaining planes
-            slices = [slice(None)] * (ary.ndim - 1) + [slice(lastPlane, ary.shape[-1])]
+            slices = [slice(None)] * (ary.ndim - 1) + [slice(last_plane, ary.shape[-1])]
             yield (idx*npoints + timepoint,), ary[slices].squeeze()
 
     recount = False if nplanes is None else True
@@ -315,7 +320,7 @@ def frombinary(path, shape=None, dtype=None, ext='bin', start=None, stop=None, r
                     dims=newdims, dtype=dtype, labels=labels, recount=recount,
                     engine=engine, credentials=credentials)
 
-def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=None, npartitions=None, labels=None, engine=None, credentials=None):
+def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=None, npartitions=None, labels=None, engine=None, credentials=None, discard_extra=False):
     """
     Loads images from single or multi-page TIF files.
 
@@ -346,20 +351,32 @@ def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=Non
 
     labels : array, optional, default = None
         Labels for records. If provided, should be one-dimensional.
+
+    discard_extra : boolean, optional, default = False
+        If True and nplanes doesn't divide by the number of pages in a multi-page tiff, the reminder will
+        be discarded and a warning will be shown. If False, it will raise an error
     """
-    import skimage.external.tifffile as tifffile
+    from tifffile import TiffFile
 
     if nplanes is not None and nplanes <= 0:
         raise ValueError('nplanes must be positive if passed, got %d' % nplanes)
 
-    def getarray(idxAndBuf):
-        idx, buf = idxAndBuf
+    def getarray(idx_buffer_filename):
+        idx, buf, fname = idx_buffer_filename
         fbuf = BytesIO(buf)
-        tfh = tifffile.TiffFile(fbuf)
+        tfh = TiffFile(fbuf)
         ary = tfh.asarray()
         pageCount = ary.shape[0]
         if nplanes is not None:
-            values = [ary[i:(i+nplanes)] for i in range(0, ary.shape[0], nplanes)]
+            extra = pageCount % nplanes
+            if extra:
+                if discard_extra:
+                    pageCount = pageCount - extra
+                    logging.getLogger('thunder').warn('Ignored %d pages in file %s' % (extra, fname))
+                else:
+                    raise ValueError("nplanes '%d' does not evenly divide '%d in file %s'" % (nplanes, pageCount,
+                                                                                              fname))
+            values = [ary[i:(i+nplanes)] for i in range(0, pageCount, nplanes)]
         else:
             values = [ary]
         tfh.close()
@@ -367,16 +384,17 @@ def fromtif(path, ext='tif', start=None, stop=None, recursive=False, nplanes=Non
         if ary.ndim == 3:
             values = [val.squeeze() for val in values]
 
-        if nplanes and (pageCount % nplanes):
-            raise ValueError("nplanes '%d' does not evenly divide '%d'" % (nplanes, pageCount))
         nvals = len(values)
         keys = [(idx*nvals + timepoint,) for timepoint in range(nvals)]
         return zip(keys, values)
 
     recount = False if nplanes is None else True
-    return frompath(path, accessor=getarray, ext=ext, start=start, stop=stop,
+    data = frompath(path, accessor=getarray, ext=ext, start=start, stop=stop,
                     recursive=recursive, npartitions=npartitions, recount=recount,
                     labels=labels, engine=engine, credentials=credentials)
+    if engine is not None and npartitions is not None and data.npartitions() < npartitions:
+        data = data.repartition(npartitions)
+    return data
 
 def frompng(path, ext='png', start=None, stop=None, recursive=False, npartitions=None, labels=None, engine=None, credentials=None):
     """
@@ -408,8 +426,8 @@ def frompng(path, ext='png', start=None, stop=None, recursive=False, npartitions
     """
     from scipy.misc import imread
 
-    def getarray(idxAndBuf):
-        idx, buf = idxAndBuf
+    def getarray(idx_buffer_filename):
+        idx, buf, _ = idx_buffer_filename
         fbuf = BytesIO(buf)
         yield (idx,), imread(fbuf)
 
