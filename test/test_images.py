@@ -1,7 +1,8 @@
 import pytest
-from numpy import arange, allclose, array, mean, apply_along_axis, float64
+from numpy import arange, allclose, array, mean, apply_along_axis, float64, \
+    nanmean, nan, nansum, nanvar, nanmin, nanmax, nanstd
 
-from thunder.images.readers import fromlist, fromarray
+from thunder.images.readers import fromlist
 from thunder.images.images import Images
 from thunder.series.series import Series
 
@@ -32,6 +33,7 @@ def test_sample(eng):
     assert allclose(data.sample(2).shape, (2, 2, 2))
     assert allclose(data.sample(1).shape, (1, 2, 2))
     assert allclose(data.filter(lambda x: x.max() > 5).sample(1).toarray(), [[1, 10], [1, 10]])
+
 
 def test_labels(eng):
     x = arange(10).reshape(10, 1, 1)
@@ -159,11 +161,79 @@ def test_mean(eng):
     assert allclose(data.mean().toarray(), original.mean(axis=0))
 
 
+def test_nanmean(eng):
+    original = arange(24).reshape((2, 3, 4)).astype(float64)
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanmean().shape, (1, 3, 4))
+    assert allclose(data.nanmean().toarray(), nanmean(original, axis=0))
+
+    original[0, 2, 3] = nan
+    original[1, 0, 2] = nan
+    original[1, 2, 2] = nan
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanmean().shape, (1, 3, 4))
+    assert allclose(data.nanmean().toarray(), nanmean(original, axis=0))
+
+
+def test_min(eng):
+    original = arange(24).reshape((2, 3, 4))
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.min().shape, (1, 3, 4))
+    assert allclose(data.min().toarray(), original.min(axis=0))
+
+
+def test_nanmin(eng):
+    original = arange(24).reshape((2, 3, 4)).astype(float64)
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanmin().shape, (1, 3, 4))
+    assert allclose(data.nanmin().toarray(), original.min(axis=0))
+    original[0, 2, 3] = nan
+    original[1, 0, 2] = nan
+    original[1, 2, 2] = nan
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanmin().shape, (1, 3, 4))
+    assert allclose(data.nanmin().toarray(), nanmin(original, axis=0))
+
+
+def test_max(eng):
+    original = arange(24).reshape((2, 3, 4))
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.max().shape, (1, 3, 4))
+    assert allclose(data.max().toarray(), original.max(axis=0))
+
+
+def test_nanmax(eng):
+    original = arange(24).reshape((2, 3, 4)).astype(float64)
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanmax().shape, (1, 3, 4))
+    assert allclose(data.nanmax().toarray(), original.max(axis=0))
+    original[0, 2, 3] = nan
+    original[1, 0, 2] = nan
+    original[1, 2, 2] = nan
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanmax().shape, (1, 3, 4))
+    assert allclose(data.nanmax().toarray(), nanmax(original, axis=0))
+
+
 def test_sum(eng):
     original = arange(24).reshape((2, 3, 4))
     data = fromlist(list(original), engine=eng)
     assert allclose(data.sum().shape, (1, 3, 4))
     assert allclose(data.sum().toarray(), original.sum(axis=0))
+
+
+def test_nansum(eng):
+    original = arange(24).reshape((2, 3, 4)).astype(float64)
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nansum().shape, (1, 3, 4))
+    assert allclose(data.nansum().toarray(), nansum(original, axis=0))
+
+    original[0, 2, 3] = nan
+    original[1, 0, 2] = nan
+    original[1, 2, 2] = nan
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nansum().shape, (1, 3, 4))
+    assert allclose(data.nansum().toarray(), nansum(original, axis=0))
 
 
 def test_var(eng):
@@ -173,12 +243,48 @@ def test_var(eng):
     assert allclose(data.var().toarray(), original.var(axis=0))
 
 
+def test_nanvar(eng):
+    original = arange(24).reshape((2, 3, 4)).astype(float64)
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanvar().shape, (1, 3, 4))
+    assert allclose(data.nanvar().toarray(), nanvar(original, axis=0))
+
+    original[0, 2, 3] = nan
+    original[1, 0, 2] = nan
+    original[1, 2, 2] = nan
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanvar().shape, (1, 3, 4))
+    assert allclose(data.nanvar().toarray(), nanvar(original, axis=0))
+
+
+def test_std(eng):
+    original = arange(24).reshape((2, 3, 4))
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.std().shape, (1, 3, 4))
+    assert allclose(data.std().toarray(), original.std(axis=0))
+
+
+def test_nanstd(eng):
+    original = arange(24).reshape((2, 3, 4)).astype(float64)
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanstd().shape, (1, 3, 4))
+    assert allclose(data.nanstd().toarray(), nanstd(original, axis=0))
+
+    original[0, 2, 3] = nan
+    original[1, 0, 2] = nan
+    original[1, 2, 2] = nan
+    data = fromlist(list(original), engine=eng)
+    assert allclose(data.nanstd().shape, (1, 3, 4))
+    assert allclose(data.nanstd().toarray(), nanstd(original, axis=0))
+
+
 def test_subtract(eng):
     original = arange(24).reshape((4, 6))
     data = fromlist([original], engine=eng)
     assert allclose(data.subtract(1).toarray(), original - 1)
     sub = arange(24).reshape((4, 6))
     assert allclose(data.subtract(sub).toarray(), original - sub)
+
 
 def test_map_as_series(eng):
     original = arange(4*4).reshape(4, 4)
@@ -202,7 +308,7 @@ def test_map_as_series(eng):
     assert allclose(data.map_as_series(f, chunk_size=size, value_size=4).toarray(), result)
 
 def test_reshape_values(eng):
-    original = fromarray(arange(72).reshape(2, 6, 6), engine=eng)
+    original = fromlist(arange(72).reshape(2, 6, 6), engine=eng)
     arr = original.toarray()
 
     assert allclose(arr.reshape(2, 12, 3), original.reshape(2, 12, 3).toarray())

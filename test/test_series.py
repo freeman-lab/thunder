@@ -1,5 +1,6 @@
 import pytest
-from numpy import allclose, arange, array, asarray, dot, cov, corrcoef, float64
+from numpy import allclose, arange, array, asarray, dot, cov, corrcoef, float64, \
+     nanmean, nan, nansum, nanvar, nanmin, nanmax, nanstd
 
 from thunder.series.readers import fromlist, fromarray
 from thunder.images.readers import fromlist as img_fromlist
@@ -127,6 +128,23 @@ def test_mean(eng):
     assert str(val.dtype) == 'float64'
 
 
+def test_nanmean(eng):
+    arr = array([arange(8), arange(8)]).astype(float64)
+    data = fromarray(arr, engine=eng)
+    val = data.nanmean().toarray()
+    expected = nanmean(data.toarray(), axis=0)
+    assert allclose(val, expected)
+    assert str(val.dtype) == 'float64'
+    arr[0, 4] = nan
+    arr[1, 3] = nan
+    arr[1, 4] = nan
+    data = fromarray(arr, engine=eng)
+    val = data.nanmean().toarray()
+    expected = nanmean(data.toarray(), axis=0)
+    assert allclose(val, expected, equal_nan=True)
+    assert str(val.dtype) == 'float64'
+
+
 def test_sum(eng):
     data = fromlist([arange(8), arange(8)], engine=eng)
     val = data.sum().toarray()
@@ -135,11 +153,45 @@ def test_sum(eng):
     assert str(val.dtype) == 'int64'
 
 
+def test_nansum(eng):
+    arr = array([arange(8), arange(8)]).astype(float64)
+    data = fromarray(arr, engine=eng)
+    val = data.nansum().toarray()
+    expected = nansum(data.toarray(), axis=0)
+    assert allclose(val, expected)
+    assert str(val.dtype) == 'float64'
+    arr[0, 4] = nan
+    arr[1, 3] = nan
+    arr[1, 4] = nan
+    data = fromarray(arr, engine=eng)
+    val = data.nansum().toarray()
+    expected = nansum(data.toarray(), axis=0)
+    assert allclose(val, expected, equal_nan=True)
+    assert str(val.dtype) == 'float64'
+
+
 def test_var(eng):
     data = fromlist([arange(8), arange(8)], engine=eng)
     val = data.var().toarray()
     expected = data.toarray().var(axis=0)
     assert allclose(val, expected)
+    assert str(val.dtype) == 'float64'
+
+
+def test_nanvar(eng):
+    arr = array([arange(8), arange(8)]).astype(float64)
+    data = fromarray(arr, engine=eng)
+    val = data.nanvar().toarray()
+    expected = nanvar(data.toarray(), axis=0)
+    assert allclose(val, expected)
+    assert str(val.dtype) == 'float64'
+    arr[0, 4] = nan
+    arr[1, 3] = nan
+    arr[1, 4] = nan
+    data = fromarray(arr, engine=eng)
+    val = data.nanvar().toarray()
+    expected = nanvar(data.toarray(), axis=0)
+    assert allclose(val, expected, equal_nan=True)
     assert str(val.dtype) == 'float64'
 
 
@@ -151,6 +203,23 @@ def test_std(eng):
     assert str(val.dtype) == 'float64'
 
 
+def test_nanstd(eng):
+    arr = array([arange(8), arange(8)]).astype(float64)
+    data = fromarray(arr, engine=eng)
+    val = data.nanstd().toarray()
+    expected = nanstd(data.toarray(), axis=0)
+    assert allclose(val, expected)
+    assert str(val.dtype) == 'float64'
+    arr[0, 4] = nan
+    arr[1, 3] = nan
+    arr[1, 4] = nan
+    data = fromarray(arr, engine=eng)
+    val = data.nanstd().toarray()
+    expected = nanstd(data.toarray(), axis=0)
+    assert allclose(val, expected, equal_nan=True)
+    assert str(val.dtype) == 'float64'
+
+
 def test_max(eng):
     data = fromlist([arange(8), arange(8)], engine=eng)
     val = data.max().toarray()
@@ -158,11 +227,46 @@ def test_max(eng):
     assert allclose(val, expected)
 
 
+def test_nanmax(eng):
+    arr = array([arange(8), arange(8)]).astype(float64)
+    data = fromarray(arr, engine=eng)
+    val = data.nanmax().toarray()
+    expected = nanmax(data.toarray(), axis=0)
+    assert allclose(val, expected)
+    assert str(val.dtype) == 'float64'
+    arr[0, 4] = nan
+    arr[1, 3] = nan
+    arr[1, 4] = nan
+    data = fromarray(arr, engine=eng)
+    val = data.nanmax().toarray()
+    expected = nanmax(data.toarray(), axis=0)
+    assert allclose(val, expected, equal_nan=True)
+    assert str(val.dtype) == 'float64'
+
+
 def test_min(eng):
     data = fromlist([arange(8), arange(8)], engine=eng)
     val = data.min().toarray()
     expected = data.toarray().min(axis=0)
     assert allclose(val, expected)
+
+
+def test_nanmin(eng):
+    arr = array([arange(8), arange(8)]).astype(float64)
+    data = fromarray(arr, engine=eng)
+    val = data.nanmin().toarray()
+    expected = nanmin(data.toarray(), axis=0)
+    assert allclose(val, expected)
+    assert str(val.dtype) == 'float64'
+    arr[0, 4] = nan
+    arr[1, 3] = nan
+    arr[1, 4] = nan
+    data = fromarray(arr, engine=eng)
+    val = data.nanmin().toarray()
+    expected = nanmin(data.toarray(), axis=0)
+    assert allclose(val, expected, equal_nan=True)
+    assert str(val.dtype) == 'float64'
+
 
 def test_labels(eng):
     x = [array([0, 1]), array([2, 3]), array([4, 5]), array([6, 7])]

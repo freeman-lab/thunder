@@ -254,7 +254,7 @@ class Data(Base):
     def astype(self, dtype, casting='unsafe'):
         """
         Cast values to the specified type.
-        
+
         Parameters
         ----------
         dtype : str or dtype
@@ -335,6 +335,48 @@ class Data(Base):
     def min(self):
         """
         Minimum of values computed along the appropriate dimension.
+        """
+        raise NotImplementedError
+
+    def nanmean(self):
+        """
+        Mean of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nansum(self):
+        """
+        Sum of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nanvar(self):
+        """
+        Variance of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nanstd(self):
+        """
+        Standard deviation computed of values along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nanmax(self):
+        """
+        Maximum of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def nanmin(self):
+        """
+        Minimum of values computed along the appropriate dimension ignoring NaNs.
+        """
+        raise NotImplementedError
+
+    def map(self, func, **kwargs):
+        """
+        Map a function over elements.
         """
         raise NotImplementedError
 
