@@ -258,7 +258,7 @@ class Images(Data):
         Compute the standard deviation across images ignoring the NaNs
         """
         if self.mode == 'spark':
-            return self._constructor(self.values.nanmstd(axis=0, keepdims=True))
+            return self._constructor(self.values.nanstd(axis=0, keepdims=True))
         else:
             return self._constructor(expand_dims(nanstd(self.values, axis=0), axis=0))
 
@@ -267,7 +267,7 @@ class Images(Data):
         Compute the sum across images ignoring the NaNs
         """
         if self.mode == 'spark':
-            return self._constructor(self.values.nanmsum(axis=0, keepdims=True))
+            return self._constructor(self.values.nansum(axis=0, keepdims=True))
         else:
             return self._constructor(expand_dims(nansum(self.values, axis=0), axis=0))
 
