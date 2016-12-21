@@ -2,7 +2,7 @@ from numpy import array, mean, median, std, size, arange, percentile,\
     asarray, zeros, corrcoef, where, unique, array_equal, delete, \
     ravel, logical_not, unravel_index, prod, random, shape, \
     dot, outer, expand_dims, ScalarType, ndarray, sqrt, pi, angle, fft, \
-    roll, polyfit, polyval, ceil, float64, fix, floor \
+    roll, polyfit, polyval, ceil, float64, fix, floor, \
     nanmean, nanstd, nanmin, nanmax, nansum, nanvar
 import logging
 from itertools import product
@@ -302,7 +302,7 @@ class Series(Data):
             return self._constructor(self.values.nanmin(axis=self.baseaxes, keepdims=True))
         else:
             return self._constructor(expand_dims(nanmin(self.values, axis=self.baseaxes), axis=self.baseaxes[0]))
-    
+
     def reshape(self, *shape):
         """
         Reshape the Series object
@@ -326,7 +326,6 @@ class Series(Data):
             newlabels = None
 
         return self._constructor(self.values.reshape(shape), labels=newlabels).__finalize__(self, noprop=('labels',))
->>>>>>> 967ff8f3e7c2fabe1705743d95eb2746d4329786
 
     def between(self, left, right):
         """
