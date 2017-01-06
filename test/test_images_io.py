@@ -29,11 +29,11 @@ def test_from_array(eng):
 
 
 def test_from_array_bolt(eng):
+    # only run this test for Spark mode
+    if eng is None:
+        return
     a = arange(8).reshape((1, 2, 4))
-    if eng is not None:
-        b = barray(a, context=eng)
-    else:
-        b = barray(a)
+    b = barray(a, context=eng)
     data = fromarray(b)
     assert allclose(data.shape, a.shape)
     assert allclose(data.value_shape, a.shape[1:])

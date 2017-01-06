@@ -20,11 +20,11 @@ def test_from_array(eng):
 
 
 def test_from_array_bolt(eng):
+    # only run this test for Spark mode
+    if eng is None:
+        return
     a = arange(8, dtype='int16').reshape((4, 2))
-    if eng is not None:
-        b = barray(a, context=eng)
-    else:
-        b = barray(a)
+    b = barray(a, context=eng)
     data = fromarray(b, engine=eng)
     assert data.shape == (4, 2)
     assert data.dtype == 'int16'

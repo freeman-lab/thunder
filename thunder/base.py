@@ -1,9 +1,8 @@
 from numpy import array, asarray, ndarray, prod, ufunc, add, subtract, \
     multiply, divide, isscalar, newaxis, unravel_index, dtype
 from bolt.utils import inshape, tupleize, slicify
-from bolt.base import BoltArray
-from bolt.spark.array import BoltArraySpark
-from bolt.spark.chunk import ChunkedArray
+from bolt.array.array import BoltArray
+from bolt.array.chunk import ChunkedArray
 from functools import reduce
 
 
@@ -254,7 +253,7 @@ class Data(Base):
     def astype(self, dtype, casting='unsafe'):
         """
         Cast values to the specified type.
-        
+
         Parameters
         ----------
         dtype : str or dtype
@@ -545,7 +544,7 @@ class Data(Base):
                 return k1, op(x, y)
 
             rdd = self.tordd().zip(other.tordd()).map(func)
-            barray = BoltArraySpark(rdd, shape=self.shape, dtype=self.dtype, split=self.values.split)
+            barray = BoltArray(rdd, shape=self.shape, dtype=self.dtype, split=self.values.split)
             return self._constructor(barray).__finalize__(self)
 
     def plus(self, other):

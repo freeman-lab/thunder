@@ -36,7 +36,7 @@ def fromrdd(rdd, dims=None, nrecords=None, dtype=None, labels=None, ordered=Fals
         Whether or not the rdd is ordered by key
     """
     from .images import Images
-    from bolt.spark.array import BoltArraySpark
+    from bolt.array.array import BoltArray
 
     if dims is None or dtype is None:
         item = rdd.values().first()
@@ -52,7 +52,7 @@ def fromrdd(rdd, dims=None, nrecords=None, dtype=None, labels=None, ordered=Fals
             k = (k,)
         return k, v
 
-    values = BoltArraySpark(rdd.map(process_keys), shape=(nrecords,) + tuple(dims), dtype=dtype, split=1, ordered=ordered)
+    values = BoltArray(rdd.map(process_keys), shape=(nrecords,) + tuple(dims), dtype=dtype, split=1, ordered=ordered)
     return Images(values, labels=labels)
 
 def fromarray(values, labels=None, npartitions=None, engine=None):
@@ -80,9 +80,9 @@ def fromarray(values, labels=None, npartitions=None, engine=None):
         Computational engine (e.g. a SparkContext for spark)
     """
     from .images import Images
-    import bolt
+    from bolt.array.array import BoltArray
 
-    if isinstance(values, bolt.spark.array.BoltArraySpark):
+    if isinstance(values, BoltArray):
         return Images(values)
 
     values = asarray(values)
