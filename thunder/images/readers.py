@@ -80,11 +80,20 @@ def fromarray(values, labels=None, npartitions=None, engine=None):
         Computational engine (e.g. a SparkContext for spark)
     """
     from .images import Images
-    import bolt
+    from ..series import Series
+    from bolt.spark.array import BoltArraySpark
 
-    if isinstance(values, bolt.spark.array.BoltArraySpark):
+    if isinstance(values, BoltArraySpark):
         return Images(values)
 
+    if isinstance(values, Images):
+        return values
+
+    if isinstance(values, Series):
+        if values.values.ndim != 2:
+            raise ValueError("Can only cast Series to Images if shape is 2d")
+
+    # Otherwise treat input like a NumPy ndarray
     values = asarray(values)
 
     if values.ndim < 2:

@@ -99,11 +99,22 @@ def fromarray(values, index=None, labels=None, npartitions=None, engine=None):
         Computational engine (e.g. a SparkContext for Spark)
     """
     from .series import Series
-    import bolt
+    from ..images import Images
+    from bolt.spark.array import BoltArraySpark
 
-    if isinstance(values, bolt.spark.array.BoltArraySpark):
+    if isinstance(values, BoltArraySpark):
         return Series(values)
 
+    if isinstance(values, Series):
+        return values
+
+    if isinstance(values, Images):
+        if data1.values.ndim != 2:
+            raise ValueError("Can only cast Images to Series if shape is 2D")
+        else:
+            return Image(values.values)
+
+    # otherise treat input like a NumPy ndarray
     values = asarray(values)
 
     if values.ndim < 2:
